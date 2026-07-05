@@ -1,0 +1,37 @@
+# Code Composer Studio / Eclipse local files
+Debug/
+Release/
+.metadata/
+.recommenders/
+
+# Build products
+*.o
+*.obj
+*.d
+*.out
+*.elf
+*.hex
+*.bin
+*.map
+*.lst
+*.su
+*.stackdump
+*_linkInfo.xml
+device_linker.cmd
+device.cmd.genlibs
+device.opt
+ccsObjs.opt
+objects.mk
+sources.mk
+subdir_rules.mk
+subdir_vars.mk
+makefile
+
+# Language server / editor caches
+.cache/
+.clangd/.cache/
+compile_commands.json
+
+# OS files
+Thumbs.db
+.DS_Store
