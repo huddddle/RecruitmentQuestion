@@ -13,7 +13,9 @@
 #include "assignment.h"
 #include "move.h"
 #include "bluetooth.h"
-
+#include "trackingiic.h"
+#include "move.h"
+#include "ai_sending.h"
 
 
 static SoftTimer_t Assitimer = {0, false};
@@ -28,11 +30,9 @@ float l2 = 3.3;
 uint8_t assignmentFlag = 0;
 uint8_t Number_of_circle = 0;
 uint8_t shapeFlag = 0; // 0:圆形, 1:正方形, 2:三角形, 3:椭圆形
-const char *shapeStrings[4] = {
-    "Triangle", 
-    "Square  ", 
-    "Circle  ", 
-    "Ellipse "
+const char *shapeStrings[2] = {
+    "head", 
+    "tail", 
 };
 
 
@@ -63,14 +63,14 @@ void AssignmentChoose(void)
   // ----- 第二阶段：选择图形 -----
   while (DL_GPIO_readPins(Assignment_ButtonRight_PORT, Assignment_ButtonRight_PIN)) 
   {
-    OLED_ShowString(0, 0, (uint8_t *)"Shape:", 8);
+    OLED_ShowString(0, 0, (uint8_t *)"Initial:", 8);
     // 在第二行显示对应的图形英文名称
     OLED_ShowString(0, 2, (uint8_t *)shapeStrings[shapeFlag], 16); 
 
     if (!DL_GPIO_readPins(Assignment_ButtonLeft_PORT, Assignment_ButtonLeft_PIN)) 
     {
       shapeFlag++;
-      shapeFlag %= 4; // 共有4种图形
+      shapeFlag %= 2; // 共有4种图形
       mspm0_delay_ms(300); // 延时消抖
     }
   }
@@ -83,107 +83,111 @@ void AssignmentChoose(void)
   return;
 }
 
-void assignment1(void) 
+//循迹
+int stageFlag = 0;
+static uint8_t task1_yaw_locked = 0;
+static float task1_base_yaw = 0.0f;
+
+static float Task1TargetYaw(float offset)
 {
-  if (turnFlag > 4 || turnFlag<0 ) 
+    float target = task1_base_yaw + offset;
+    RangeLimite(&target, 180.0f);
+    return target;
+}
+
+void assignment1(void)
+{
+  if (!task1_yaw_locked)
   {
-    zeroparameter();
-    backwords();
-    mspm0_delay_ms(500);
-    stop();
-    LightAndSound();
-    return;
+    task1_base_yaw = wit_data.yaw;
+    task1_yaw_locked = 1;
   }
-  if (LeftTurnFlag==0&&RightTurnFlag==0&&TurnOverFlag==0)
+
+  if (stageFlag == 0 && turnCompleted == 0)
   {
-    Tracking();
+    Left_Turn(90);
+    if (turnCompleted == 1)stageFlag++;
   }
-  else if(LeftTurnFlag==1)
+  else if (stageFlag == 1) 
   {
-    Left_Turn(88);
+    DistanceControlWithYaw(640, 1, Task1TargetYaw(90.0f));
+    if(encoderFlag == 1)
+    { 
+      stageFlag = 2; 
+      stop();
+    } 
   }
-  else if(RightTurnFlag==1)
+  else if (stageFlag == 2) 
   {
-    Right_Turn(88);
+    Right_Turn(90);
+    if (turnCompleted == 2){stageFlag++;}
   }
-  else if(TurnOverFlag==1)
+  else if (stageFlag == 3) 
   {
-    Left_Turn(181);
+    DistanceControlWithYaw(800, 1, Task1TargetYaw(0.0f));
+    if(encoderFlag == 2)
+    { 
+      stageFlag = 4; 
+      stop();
+    } 
+  }
+  else if (stageFlag == 4) 
+  {
+    Right_Turn(90);
+    if (turnCompleted == 3)stageFlag++;
+  }
+  else if (stageFlag == 5) 
+  {
+    DistanceControlWithYaw(1200, 1, Task1TargetYaw(-90.0f));
+    if(encoderFlag == 3)
+    { 
+      stageFlag = 6; 
+      stop();
+    } 
+  }
+   else if (stageFlag == 6) 
+  {
+    Right_Turn(90);
+    if (turnCompleted == 4)stageFlag++;
+  }
+   else if (stageFlag == 7) 
+  {
+    DistanceControlWithYaw(350, 1, Task1TargetYaw(-180.0f));
+    if(encoderFlag == 4)
+    { 
+      stageFlag = 8; 
+      stop();
+    } 
+  }
+  else 
+  {
+  ;
   }
 }
 
-void assignment2(void) {
+//控制平衡 只有直立环
+void assignment2(void) 
+{
 
-  if (turnFlag > 6 || turnFlag < 0) {
-    zeroparameter();
-    backwords();
-    mspm0_delay_ms(500);
-    stop();
-    LightAndSound();
-    return;
-  }
-
-  if (LeftTurnFlag == 0 && RightTurnFlag == 0 && TurnOverFlag == 0) {
-    Tracking();
-  } else {
-    if (turnCompleted == 3 && turnFlag == 4) {
-      Left_Turn(179);
-    } else if (LeftTurnFlag == 1) {
-      Left_Turn(89);
-    } else if (RightTurnFlag == 1) {
-      Right_Turn(87);
-    }
-  }
 }
 
-void assignment3(void) 
+//控制平衡 直立环+位置环
+void assignment3(void)
 {
-    if (turnFlag > 4 || turnFlag<0 ) 
-  {
-    zeroparameter();
-    backwords();
-    mspm0_delay_ms(500);
-    stop();
-    LightAndSound();
-    Bluetooth_SendData(l1, l2);
-    return;
-  }
-  if (LeftTurnFlag==0&&RightTurnFlag==0&&TurnOverFlag==0)
-  {
-    Tracking();
-  }
-  else if(LeftTurnFlag==1)
-  {
-    Left_Turn(88);
-  }
-  else if(RightTurnFlag==1)
-  {
-    Right_Turn(87);
-  }
-  else if(TurnOverFlag==1)
-  {
-    Left_Turn(181);
-  }
+    // balance();
+
+    // // 发送AI调参数据（使用DMA非阻塞发送）
+    // // 只在维持平衡阶段发送数据，避免起振阶段的干扰
+    // extern Mode BalanceMode;
+    // if (BalanceMode == maintain) {
+    //     extern float angle;
+    //     extern int balancePWM;
+    //     AISending(angle, balancePWM);
+    // }
 }
 void assignment4(void) 
 {
-  if (turnFlag > 4) 
-  {
-    stop();
-    parking();
-    zeroparameter();
-    LightAndSound();
-    return;
-  }
-  if (LeftTurnFlag == 0 && RightTurnFlag == 0 && TurnOverFlag == 0) {
-    Tracking();
-  } else if (LeftTurnFlag == 1) {
-    Left_Turn(88.0);
-  } else if (RightTurnFlag == 1) {
-    Right_Turn(88.0);
-  } else if (TurnOverFlag == 1) {
-    Left_Turn(181.0);
-  }
+
 }
 
 void assignment5(void) 
@@ -194,7 +198,7 @@ void assignment5(void)
 // 如果一直没有任务就空转
 void assignment0(void) {
 
-  OLED_ShowString(10, 6, (uint8_t *)"Completed", 8);
+    trackSensorUpdate();
 }
 
 void LightAndSound(void)
@@ -221,4 +225,7 @@ void zeroparameter(void)
     turnCompleted = 0;
     assignmentFlag = 0;
     TurnOverFlag = 0;
+
+    task1_yaw_locked = 0;
+    task1_base_yaw = 0.0f;
 }

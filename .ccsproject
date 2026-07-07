@@ -3,7 +3,7 @@
 <projectOptions>
 	<connection value="common/targetdb/connections/TIXDS110_Connection.xml"/>
 	<activeTargetConfiguration value="targetConfigs/MSPM0G3507.ccxml"/>
-	<origin value="C:/Users/ROG/Desktop/LittleCar"/>
+	<origin value="E:/xwechat_files/wxid_72tnam8wh6yn22_c523/msg/file/2026-07/BalanceCar0531/BalanceCar"/>
 	<deviceFamily value="TMS470"/>
 	<isTargetConfigurationManual value="false"/>
 </projectOptions>

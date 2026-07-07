@@ -53,13 +53,15 @@
                                     <listOptionValue value="${PROJECT_ROOT}/UART"/>
                                     <listOptionValue value="${PROJECT_ROOT}/SERVO"/>
                                     <listOptionValue value="${PROJECT_ROOT}/SPEED"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/ClaudeCode"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/WIT"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/Irtracking"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/Motor"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/BNO08X_UART_RVC"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/Ultrasonic_GPIO"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/Ultrasonic_Capture"/>
-                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/TrackingMoudleIIC"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/TrackingModuleIIC"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/ADC_Angle"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/OLED_Hardware_I2C"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/OLED_Hardware_SPI"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/OLED_Software_I2C"/>
@@ -119,6 +121,54 @@
                                     <listOptionValue value="${SYSCONFIG_TOOL_SYSCONFIG_MANIFEST}"/>
                                 </option>
                             </tool>
+                        </toolChain>
+                    </folderInfo>
+                    <folderInfo id="com.ti.ccstudio.buildDefinitions.TMS470.Debug.1877016991.INTERRUPT" name="INTERRUPT" resourcePath="INTERRUPT">
+                        <toolChain id="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.exe.DebugToolchain.1035661058" name="TI Build Tools" superClass="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.exe.DebugToolchain" unusedChildren="">
+                            <option id="com.ti.ccstudio.buildDefinitions.core.OPT_TAGS.288963667.1080380044" superClass="com.ti.ccstudio.buildDefinitions.core.OPT_TAGS.288963667"/>
+                            <option id="com.ti.ccstudio.buildDefinitions.core.OPT_CODEGEN_VERSION.2066888301.1291031279" superClass="com.ti.ccstudio.buildDefinitions.core.OPT_CODEGEN_VERSION.2066888301"/>
+                            <targetPlatform id="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.exe.targetPlatformDebug" name="Platform" superClass="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.exe.targetPlatformDebug"/>
+                            <tool id="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.exe.compilerDebug.1858915545" name="Arm Compiler" superClass="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.exe.compilerDebug.346008481">
+                                <option id="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.compilerID.INCLUDE_PATH.1547745923" superClass="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.compilerID.INCLUDE_PATH" valueType="includePath">
+                                    <listOptionValue value="${COM_TI_MSPM0_SDK_INCLUDE_PATH}"/>
+                                    <listOptionValue value="${SYSCONFIG_TOOL_INCLUDE_PATH}/TURN"/>
+                                    <listOptionValue value="${SYSCONFIG_TOOL_INCLUDE_PATH}"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/AssignmentChoose"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/IRTRACKING"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/UART"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/SERVO"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/SPEED"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/WIT"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/Irtracking"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/Motor"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/BNO08X_UART_RVC"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/Ultrasonic_GPIO"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/Ultrasonic_Capture"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/TrackingModuleIIC"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/ADC_Angle"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/OLED_Hardware_I2C"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/OLED_Hardware_SPI"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/ADC_Angle"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/ADC_Angle"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/OLED_Software_I2C"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/OLED_Software_SPI"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/Bluetooth"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/MPU6050"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/PID"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/INTERRUPT/"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/TURN/"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Move"/>
+                                    <listOptionValue value="${PROJECT_ROOT}"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/${ConfigName}"/>
+                                    <listOptionValue value="${COM_TI_MSPM0_SDK_INSTALL_DIR}/source/third_party/CMSIS/Core/Include"/>
+                                    <listOptionValue value="${COM_TI_MSPM0_SDK_INSTALL_DIR}/source"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/MSPM0"/>
+                                </option>
+                            </tool>
+                            <tool id="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.exe.linkerDebug.1055875377" name="Arm Linker" superClass="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.exe.linkerDebug.976637257"/>
+                            <tool id="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.hex.604354881" name="Arm Hex Utility" superClass="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.hex.1118168848"/>
+                            <tool id="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.objcopy.604292583" name="Arm Objcopy Utility" superClass="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.objcopy.1822344830"/>
+                            <tool id="com.ti.ccstudio.buildDefinitions.sysConfig.1873863579" name="SysConfig" superClass="com.ti.ccstudio.buildDefinitions.sysConfig.645321154"/>
                         </toolChain>
                     </folderInfo>
                     <fileInfo id="com.ti.ccstudio.buildDefinitions.TMS470.Debug.1877016991.INTERRUPT/interrupt.c" name="interrupt.c" rcbsApplicability="disable" resourcePath="INTERRUPT/interrupt.c" toolsToInvoke="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.exe.compilerDebug.346008481.1273308712">
@@ -223,6 +273,7 @@
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/Ultrasonic_GPIO"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/Ultrasonic_Capture"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/OLED_Hardware_I2C"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/ADC_Angle"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/OLED_Hardware_SPI"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/OLED_Software_I2C"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/OLED_Software_SPI"/>
@@ -235,6 +286,7 @@
                                     <listOptionValue value="${COM_TI_MSPM0_SDK_INSTALL_DIR}/source/third_party/CMSIS/Core/Include"/>
                                     <listOptionValue value="${COM_TI_MSPM0_SDK_INSTALL_DIR}/source"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/MSPM0"/>
+                                    <listOptionValue value="${workspace_loc:/${ProjName}/Drivers/TrackingModuleIIC}"/>
                                 </option>
                             </tool>
                             <tool id="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.exe.linkerDebug.317821808" name="Arm Linker" superClass="com.ti.ccstudio.buildDefinitions.TMS470_TICLANG_4.0.exe.linkerDebug.976637257"/>

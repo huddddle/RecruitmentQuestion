@@ -3,6 +3,14 @@
 
 #include "ti_msp_dl_config.h"
 #include "global.h"
+
+// 定义一个名为 Mode 的枚举类型（必须在使用前定义）
+typedef enum
+{
+   stand = 0 ,    // 默认值为 0
+  maintain = 1  // 默认值为 1
+} Mode ;
+
 void track_deal_four(uint8_t *s);
 float APP_ELE_PID_Calc(int8_t actual_value);
 void Chassis(void);
@@ -18,6 +26,12 @@ int trackingRightTurn(void);
 int ModuleTracking(void);
 void parking(void);
 void backwords(void);
+void balance(void);
+
+// 导出angle和balancePWM供AI调参使用
+extern float angle;
+extern int balancePWM;
+extern Mode BalanceMode;
 
 // 定义全局计时器变量
 static SoftTimer_t assignment3timer = {0, false};

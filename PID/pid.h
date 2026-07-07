@@ -5,5 +5,6 @@
 #include "global.h"
 
 int Speed(PID*Example, int True_Speed, int Target_Speed);
+int Loc_PID_Control(PID *Example, float Current_Value, float Target_Value) ;
 
 #endif

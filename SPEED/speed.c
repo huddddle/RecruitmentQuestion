@@ -3,212 +3,157 @@
 #include "pid.h"
 #include "stdlib.h"
 #include "speed.h"
+#include "ti_msp_dl_config.h" 
 
-//运动学控制
-int32_t Left_count = 0;
-int32_t Right_count = 0;
-int SpeLeft[1000] = {0};
-int SpeRight[1000] = {0};
-int l = 0, r = 0; // 定义数组索引index
-struct SpeedCondition SpeeCon;
-int k1,k2;
+#define Radios 33.3//单位是mm
+#define Pi 3.1415926
+#define codePerCircle 366.0
 
-Loc_PID DistPID_L = {2.0f, 0.0f, 0.2f, 0, 0, 0};
-Loc_PID DistPID_R = {2.0f, 0.0f, 0.2f, 0, 0, 0};
+// 静态内部变量：保存上一次的PWM输出，因为速度环使用的是"增量式 PID"，必须加以累加
+static int Delta_PWM_L = 0;
+static int Delta_PWM_R = 0;
 
-#define SPEED_LIMIT_PWM      300
-#define DIST_INTEGRAL_LIMIT  3000
+// 初始化距离(位置)PID 的参数（Kp, Ki, Kd,...）
+// 这里给出一组示例初值，调试时请根据小车质量和电机功率修改！一般位置环只需 P 计算即可较好运行
+Loc_PID DistPID_L = {4.0, 0.0, 0.2, 0, 0, 0};
+Loc_PID DistPID_R = {4.0, 0.0, 0.2, 0, 0, 0};
 
-typedef struct {
-  int error;
-  int last_error;
-  int last_last_error;
-  int pwm;
-} SpeedLoopState;
-
-static SpeedLoopState SpeedLoop_L = {0};
-static SpeedLoopState SpeedLoop_R = {0};
-
-static int LimitInt(int value, int min, int max)
-{
-  if (value > max) {
-    return max;
-  }
-  if (value < min) {
-    return min;
-  }
-  return value;
-}
-
-static int IncrementalSpeedPID(SpeedLoopState *state, PID *pid, int true_speed, int target_speed)
-{
-  float delta_pwm;
-
-  state->error = target_speed - true_speed;
-  delta_pwm = pid->Kp * (state->error - state->last_error) +
-              pid->Ki * state->error +
-              pid->Kd * (state->error - 2 * state->last_error + state->last_last_error);
-
-  state->last_last_error = state->last_error;
-  state->last_error = state->error;
-  state->pwm += (int)delta_pwm;
-  state->pwm = LimitInt(state->pwm, -950, 950);
-
-  return state->pwm;
-}
-
-static void SetSignedMotorPWM(int left_pwm, int right_pwm)
-{
-  if (left_pwm >= 0) {
-    Left_Control(1, left_pwm);
-  } else {
-    Left_Control(0, -left_pwm);
-  }
-
-  if (right_pwm >= 0) {
-    Right_Control(1, right_pwm);
-  } else {
-    Right_Control(0, -right_pwm);
-  }
-}
-
+// 初始化定时器
 void Speed_Init(void)
 {
+  //电机编码器初始化
   NVIC_EnableIRQ(Encoder_INT_IRQN);      // 开启编码器的中断
-  NVIC_EnableIRQ(TIMER_0_INST_INT_IRQN); // 开启定时器中断
-  DL_TimerA_startCounter(TIMER_0_INST);  // 开始启用定时器
+  NVIC_EnableIRQ(TIMER_Encoder_INST_INT_IRQN); // 开启定时器中断
+  DL_TimerA_startCounter(TIMER_Encoder_INST);  // 开始启用定时器
 }
 
-void SpeedRead(void) {
-
-  static int32_t Last_Left_count;
-  static int32_t Last_Right_count;
-
-  if (l == 999 || r == 999) {
-    l = 0;
-    r = 0;
-  }
-  if (abs(-Left_count + Last_Left_count) < 2000) {
-    SpeLeft[l++] = -Left_count + Last_Left_count;
-  }
-  if (abs(-Right_count + Last_Right_count) < 2000) {
-    SpeRight[r++] = -Right_count + Last_Right_count;
-  }
-
-  Last_Left_count = Left_count;
-  Last_Right_count = Right_count;
-}
-
-void SpeedSet(struct SpeedCondition *Spe) {
-  static float Current_PWM_L = 0;
-  static float Current_PWM_R = 0;
-
-  // 增量式PID返回的是本次调整的增量，需要累加到原有PWM上
-  Current_PWM_L += Speed(&SpeedPID, Spe->True_Speed_Left, Spe->Target_Speed_Left);
-  Current_PWM_R += Speed(&SpeedPID, Spe->True_Speed_Right, Spe->Target_Speed_Right);
-
-  // 对总输出进行限幅，防止超出驱动能力
-  if (Current_PWM_L > 1000) Current_PWM_L = 1000;
-  if (Current_PWM_L < -1000) Current_PWM_L = -1000;
-  if (Current_PWM_R > 1000) Current_PWM_R = 1000;
-  if (Current_PWM_R < -1000) Current_PWM_R = -1000;
-
-  k1 = (int)Current_PWM_L;
-  k2 = (int)Current_PWM_R;
-
-  // 执行控制
-  if (k1 > 0) Left_Control(1, k1);
-  else Left_Control(0, -k1);
-
-  if (k2 > 0) Right_Control(1, k2);
-  else Right_Control(0, -k2);
-}
-
-void SpeedControl(int target_speed_L, int target_speed_R)
+/******************************************************************
+ * 函 数 名 称：SpeedControl
+ * 函 数 说 明：闭环速度控制（内环）
+ * 函 数 形 参：target_speed_L / R 期望的目标速度值（一周期内的脉冲数）
+ * 函 数 返 回：无
+ * 备       注：采用增量式PID，直接调用了你在 pid.c 写好的函数
+******************************************************************/
+void SpeedControl(int target_speed_L, int target_speed_R,int dir)
 {
-  int true_speed_L = 0;
-  int true_speed_R = 0;
-  int pwm_L;
-  int pwm_R;
+    // 调用增量式PID计算偏差所需增加的PWM
+    Delta_PWM_L = Speed(&SpeedPID_L, Current_Speed_Left, target_speed_L);
+    Delta_PWM_R = Speed(&SpeedPID_R, Current_Speed_Right, target_speed_R);
 
-  target_speed_L = LimitInt(target_speed_L, -SPEED_LIMIT_PWM, SPEED_LIMIT_PWM);
-  target_speed_R = LimitInt(target_speed_R, -SPEED_LIMIT_PWM, SPEED_LIMIT_PWM);
+    if (Delta_PWM_L > 300)  Delta_PWM_L = 300;
+    if (Delta_PWM_L < -300) Delta_PWM_L = -300;
+    
+    if (Delta_PWM_R > 300)  Delta_PWM_R = 300;
+    if (Delta_PWM_R < -300) Delta_PWM_R = -300;
 
-  if (l != 0) {
-    true_speed_L = SpeLeft[l - 1];
-  }
-  if (r != 0) {
-    true_speed_R = SpeRight[r - 1];
-  }
+    Left_Control(dir,  target_speed_L+Delta_PWM_L);
+    Right_Control(dir, target_speed_R+Delta_PWM_R);
 
-  pwm_L = IncrementalSpeedPID(&SpeedLoop_L, &SpeedPID, true_speed_L, target_speed_L);
-  pwm_R = IncrementalSpeedPID(&SpeedLoop_R, &SpeedPID, true_speed_R, target_speed_R);
-
-  SetSignedMotorPWM(pwm_L, pwm_R);
 }
 
-void DistanceReset(void)
+
+
+/******************************************************************
+ * 函 数 名 称：DistanceControl
+ * 函 数 说 明：闭环距离控制（外环 + 内环串联）
+ * 函 数 形 参：target_distance_L / R 期望到达的目标实际距离
+ * 函 数 返 回：无
+ * 备       注：利用位置式PID计算出所需要的速度，然后投喂给 SpeedControl 
+******************************************************************/
+volatile int32_t AbsoluateEncoder=0;
+static int32_t  startEncoder_L=0;
+static int32_t  startEncoder_R=0;
+int8_t encoderFlag=0;
+#define DISTANCE_CONTROL_PERIOD_MS 10
+#define YAW_CORRECTION_KP 4.0f
+#define YAW_CORRECTION_LIMIT 80
+#define DISTANCE_SPEED_LIMIT 250
+
+static float NormalizeYawError(float error)
 {
-  __disable_irq();
-  Left_count = 0;
-  Right_count = 0;
-  __enable_irq();
-
-  DistPID_L.Error = 0;
-  DistPID_L.Last_Error = 0;
-  DistPID_L.Integral = 0;
-  DistPID_R.Error = 0;
-  DistPID_R.Last_Error = 0;
-  DistPID_R.Integral = 0;
-
-  SpeedLoop_L.error = 0;
-  SpeedLoop_L.last_error = 0;
-  SpeedLoop_L.last_last_error = 0;
-  SpeedLoop_L.pwm = 0;
-  SpeedLoop_R.error = 0;
-  SpeedLoop_R.last_error = 0;
-  SpeedLoop_R.last_last_error = 0;
-  SpeedLoop_R.pwm = 0;
+    while (error > 180.0f) {
+        error -= 360.0f;
+    }
+    while (error < -180.0f) {
+        error += 360.0f;
+    }
+    return error;
 }
 
-void DistanceControl(int target_distance_L, int target_distance_R)
+static int LimitInt(int value, int minValue, int maxValue)
 {
-  int32_t current_dist_L;
-  int32_t current_dist_R;
-  int target_speed_L;
-  int target_speed_R;
-
-  __disable_irq();
-  current_dist_L = -Left_count;
-  current_dist_R = -Right_count;
-  __enable_irq();
-
-  DistPID_L.Error = target_distance_L - current_dist_L;
-  DistPID_L.Integral += DistPID_L.Error;
-  DistPID_L.Integral = LimitInt(DistPID_L.Integral, -DIST_INTEGRAL_LIMIT, DIST_INTEGRAL_LIMIT);
-  target_speed_L = (int)(DistPID_L.Kp * DistPID_L.Error +
-                         DistPID_L.Ki * DistPID_L.Integral +
-                         DistPID_L.Kd * (DistPID_L.Error - DistPID_L.Last_Error));
-  DistPID_L.Last_Error = DistPID_L.Error;
-  target_speed_L = LimitInt(target_speed_L, -SPEED_LIMIT_PWM, SPEED_LIMIT_PWM);
-
-  DistPID_R.Error = target_distance_R - current_dist_R;
-  DistPID_R.Integral += DistPID_R.Error;
-  DistPID_R.Integral = LimitInt(DistPID_R.Integral, -DIST_INTEGRAL_LIMIT, DIST_INTEGRAL_LIMIT);
-  target_speed_R = (int)(DistPID_R.Kp * DistPID_R.Error +
-                         DistPID_R.Ki * DistPID_R.Integral +
-                         DistPID_R.Kd * (DistPID_R.Error - DistPID_R.Last_Error));
-  DistPID_R.Last_Error = DistPID_R.Error;
-  target_speed_R = LimitInt(target_speed_R, -SPEED_LIMIT_PWM, SPEED_LIMIT_PWM);
-
-  SpeedControl(target_speed_L, target_speed_R);
+    if (value > maxValue) return maxValue;
+    if (value < minValue) return minValue;
+    return value;
 }
-//    Speed Controller
-    // SpeeCon.Target_Speed_Left = 500;
-    // SpeeCon.Target_Speed_Right = 500;
-    // if (r != 0)
-    //   SpeeCon.True_Speed_Right = SpeRight[r - 1];
-    // if (l != 0)
-    //   SpeeCon.True_Speed_Left = SpeLeft[l - 1];
-    // SpeedSet(&SpeeCon);
 
+int DistanceControlWithYaw(int target_distance, int dir, float target_yaw)
+{
+    static float startYaw = 0.0f;
+
+    if (!speedControlTick) {
+        return 0;
+    }
+    speedControlTick = 0;
+
+    if (!AbsoluateEncoder) {
+        AbsoluateEncoder = (int32_t)((float)target_distance / (2.0f * Pi * Radios) * codePerCircle);
+        startEncoder_L = encoderLeftCount;
+        startEncoder_R = encoderRightCount;
+        startYaw =  target_yaw;
+        Reset_PID(&DistPID_L);
+        Reset_PID(&DistPID_R);
+    }
+
+    int32_t left_delta = encoderLeftCount - startEncoder_L;
+    int32_t right_delta = encoderRightCount - startEncoder_R;
+    int32_t avg_delta = (left_delta + right_delta) / 2;
+
+    DistPID_L.Error = AbsoluateEncoder - avg_delta;
+    DistPID_L.Integral += DistPID_L.Error;
+    DistPID_L.Integral = LimitInt(DistPID_L.Integral, -3000, 3000);
+
+    int base_speed = (int)(DistPID_L.Kp * DistPID_L.Error +
+                           DistPID_L.Ki * DistPID_L.Integral +
+                           DistPID_L.Kd * (DistPID_L.Error - DistPID_L.Last_Error));
+    DistPID_L.Last_Error = DistPID_L.Error;
+    base_speed = LimitInt(base_speed, -DISTANCE_SPEED_LIMIT, DISTANCE_SPEED_LIMIT);
+
+    float yaw_error = NormalizeYawError(wit_data.yaw - startYaw);
+    int yaw_correction = (int)(YAW_CORRECTION_KP * yaw_error);
+    yaw_correction = LimitInt(yaw_correction, -YAW_CORRECTION_LIMIT, YAW_CORRECTION_LIMIT);
+
+    int target_speed_L = base_speed + yaw_correction;
+    int target_speed_R = base_speed - yaw_correction;
+
+    target_speed_L = LimitInt(target_speed_L, -DISTANCE_SPEED_LIMIT, DISTANCE_SPEED_LIMIT);
+    target_speed_R = LimitInt(target_speed_R, -DISTANCE_SPEED_LIMIT, DISTANCE_SPEED_LIMIT);
+
+    if (target_speed_L < 0 || target_speed_R < 0) {
+        target_speed_L = 0;
+        target_speed_R = 0;
+    }
+
+    SpeedControl(target_speed_L, target_speed_R, dir);
+
+    if (avg_delta >= AbsoluateEncoder) {
+        AbsoluateEncoder = 0;
+        startEncoder_L = 0;
+        startEncoder_R = 0;
+        encoderFlag++;
+        return 1;
+    }
+
+    return 0;
+}
+
+int DistanceControl(int target_distance, int dir)
+{
+    return DistanceControlWithYaw(target_distance, dir, wit_data.yaw);
+}
+
+void Reset_PID(Loc_PID *pid) {
+    pid->Integral = 0;
+    pid->Last_Error = 0;
+    pid->Error = 0;
+}

@@ -6,16 +6,19 @@
 #include "clock.h"
 #include "interrupt.h"
 #include "assignment.h"
-
-
+#include "main.h"
+#include "trackingiic.h"
+#include "pid.h"
+#include "adc_angle.h"
+#include "speed.h"
 #define turn_threshold 2
 #define max_correction 90
-
-int irSpeed=400; // 巡线速度
+#define Middle 215.99
+int irSpeed=300; // 巡线速度
 
 // 
 int32_t pid_output_IRR = 0;
-uint8_t x[8] = {0};
+extern uint8_t TrkI2C_x[12];
 
 
 int indexx_move = 0;
@@ -72,25 +75,62 @@ void Chassis(void) {
 
 
 
+float angle=0.0;  // 改为全局变量，供AI调参使用
+int balancePWM = 0;  // 改为全局变量，供AI调参使用
+Mode BalanceMode;
+static SoftTimer_t stand_timer = {0, false};
+static uint8_t stand_dir = 0;
+
+void TIMER_SwingUp_INST_IRQHandler(void)
+{
+  angle = ADC_Angle_GetDegree();
+  BalanceMode = fabs(angle - Middle) < 25.00 ? maintain : stand;
+}
 
 
 
 
+void balance(void) {
+  
+  // 维持平衡分为两个阶段，也就是起振阶段和维持阶段
+  switch (BalanceMode) {
+  case stand:
+    // 使用非阻塞延时，每500ms切换一次方向
+    if (NonBlockDelay(&stand_timer, 900)) {
+      stand_dir = !stand_dir;
+    }
+    if (stand_dir == 0) {
+      Left_Control(0, 750);
+      Right_Control(0, 750);
+    } else {
+      Left_Control(1, 750);
+      Right_Control(1, 750);
+    }
+    break;
 
-
-
-
-
-
-
-
-
+  case maintain:
+  {
+    balancePWM = Loc_PID_Control(&AnglePID, angle, Middle);
+    // 正确处理正负PWM
+    if (balancePWM > 0) {
+      // PWM为正，电机正向转，1表示正转
+      SpeedControl(balancePWM,balancePWM,1);//此部分电流由两部分组成：初始电流+编码器反馈电流
+    } else if (balancePWM <= 0) {
+      // PWM为负，电机反向转，0表示反转，使用绝对值作为速度
+      SpeedControl(-balancePWM,-balancePWM,0);
+    }
+    break;
+  }
+  default:
+    break;
+  }
+}
 
 //以下是成员函数
 int trackingLeftTurn(void)
 {
-  track_deal_sensor(x);
-  if(x[3]==1||x[4]==1)
+  track_deal_sensor(TrkI2C_x);
+  if(TrkI2C_x[3]==1||TrkI2C_x[4]==1)
   {
     turnCompleted++;
     return 10;  
@@ -106,8 +146,8 @@ int trackingLeftTurn(void)
 //以下是成员函数
 int trackingRightTurn(void)
 {
-  track_deal_sensor(x);
-  if(x[3]==1||x[4]==1)
+  track_deal_sensor(TrkI2C_x);
+  if(TrkI2C_x[3]==1||TrkI2C_x[4]==1)
   {
     turnCompleted++;
     return 10;  
@@ -125,190 +165,56 @@ static uint32_t crossing_wait_start = 0;
 static uint8_t crossing_waiting = 0;
 static int crossing_turn_dir = 0;   // 1: 左转, 2: 右转
 
-static void ModuleTracking_RunFollow(void)
-{
-  int turn_pwm=0;
-  int Tracking_Sum = 0;
-
-  if(IrSensorNumber > 0 && IrSensorNumber <= 2) {
-    if(x[0]) Tracking_Sum += 60;
-    if(x[1]) Tracking_Sum += 40;
-    if(x[2]) Tracking_Sum += 20;
-    if(x[3]) Tracking_Sum += 10;
-    if(x[4]) Tracking_Sum -= 10;
-    if(x[5]) Tracking_Sum -= 20;
-    if(x[6]) Tracking_Sum -= 40;
-    if(x[7]) Tracking_Sum -= 60;
-  }
-
-  float Kp = 1.0f;
-  float Kd = 0.4f;
-  int last_tracking_error = 0;
-  int error_change = Tracking_Sum - last_tracking_error;
-  int adjustpwm = (int)(Kp * Tracking_Sum + Kd * error_change);
-  last_tracking_error = Tracking_Sum;
-
-  Left_Control(1, irSpeed - adjustpwm);
-  Right_Control(1, irSpeed + adjustpwm);
-}
-
-// int ModuleTracking(void)
-// {
-//   track_deal_sensor(x);
-
-//   if (crossing_waiting)
-//   {
-//     // 就像写 delay(1000) 一样，但它是非阻塞的！
-//     if (!NonBlockDelay(&ModuleTrackingTimer, 300)) 
-//     {
-//       ModuleTracking_RunFollow();
-//       DL_GPIO_setPins(BEE_PORT, BEE_Bee_Port_PIN );
-//       return 9;
-//     }
-//     DL_GPIO_clearPins(BEE_PORT, BEE_Bee_Port_PIN);
-//     track_deal_sensor(x);
-//     crossing_waiting = 0;
-
-//     if (IrSensorNumber == 0&& (crossing_turn_dir == 1 || crossing_turn_dir == 2))
-//     {
-//       if (crossing_turn_dir == 1)
-//       {
-//         CrossingFlag++;
-//         crossing_turn_dir = 0;
-//         return 1;
-//       }
-//       else if (crossing_turn_dir == 2)
-//       {
-//         CrossingFlag++;
-//         crossing_turn_dir = 0;
-//         return 2;
-//       }
-//     }
-
-//     crossing_turn_dir = 0;
-//     ModuleTracking_RunFollow();
-//     return 9;
-//   }
-
-//   if (IrSensorNumber >= 3 && IrSensorNumber <= 5)
-//   {
-//     int left_score = x[0]*3 + x[1]*2 + x[2]*1;
-//     int right_score = x[7]*3 + x[6]*2 + x[5]*1;
-
-//     if (left_score > right_score)
-//     {
-//       crossing_waiting = 1;
-//       crossing_turn_dir = 1;
-//       ModuleTracking_RunFollow();
-//       return 9;
-//     }
-//     else if (right_score > left_score)
-//     {
-//       crossing_waiting = 1;
-//       crossing_turn_dir = 2;
-//       ModuleTracking_RunFollow();
-//       return 9;
-//     }
-//   }
-
-//   ModuleTracking_RunFollow();
-//   return 9;
-// }
-
-
 
 static SoftTimer_t Trackingtimer = {0, false};    // 前进计时器
-// uint8_t LeftturningPoint=0;
-// uint8_t RightturningPoint=0;
 void Tracking(void) {
   // static int8_t LeftturningPoint=0;//循迹转向防抖
   // static int8_t RightturningPoint=0;//循迹转向防抖
 
   // 转弯识别
-  track_deal_sensor(x);
-  if (IrSensorNumber >= 3 && IrSensorNumber <= 6) {
-    // 使用加权比较，给最外侧的灯（x[0]和x[7]）更高的权重，确保转向意图清晰
-    int left_score = x[0] * 3 + x[1] * 2 + x[2] * 1;
-    int right_score = x[7] * 3 + x[6] * 2 + x[5] * 1;
+  trackSensorUpdate();
+    
+  // if (TrkI2C_IrSensorNumber==0) 
+  // {
+  //     mspm0_delay_ms(100);
+  //     trackSensorUpdate();
+  //     if (TrkI2C_IrSensorNumber==0) //如果没有路了，说明到地方了
+  //     {
+  //       assignmentFlag=0;
+  //       Left_Control(1, 0); 
+  //       Right_Control(1, 0);
+  //       return;
+  //     }
+  // } 
 
-    // left_score>right_score ? LeftturningPoint++,RightturningPoint--
-    // :LeftturningPoint--,RightturningPoint++ ;
-
-    if (left_score > right_score) // 疑似左转路口进行判定
-    {
-      mspm0_delay_ms(65);
-      if (track_deal_sensor(x) != 0) // 还有路是说是十字路口
-      {
-        CrossingFlag++;LeftTurnFlag = 0;RightTurnFlag = 0;
-        return;
-      } else {
-        turnFlag++; LeftTurnFlag = 1;RightTurnFlag = 0;
-        return;
-      }
-    } else if (right_score > left_score) // 疑似右转路口进行判定
-    {
-      mspm0_delay_ms(75);
-      if (track_deal_sensor(x) != 0) // 还有路是说是十字路口
-      {
-        CrossingFlag++;
-        LeftTurnFlag = 0;
-        RightTurnFlag = 0;
-        return;
-      } else {
-        turnFlag++;
-        LeftTurnFlag = 0;
-        RightTurnFlag = 1;
-        return;
-      }
-    }
-  }
 
   int Tracking_Sum = 0;
   // 3. 正常循迹偏差计算
-  if(IrSensorNumber > 0 && IrSensorNumber <=2) {
-    if(x[0]) Tracking_Sum += 60;
-    if(x[1]) Tracking_Sum += 40;
-    if(x[2]) Tracking_Sum += 20;
-    if(x[3]) Tracking_Sum += 10;
-    if(x[4]) Tracking_Sum -= 10;
-    if(x[5]) Tracking_Sum -= 20;
-    if(x[6]) Tracking_Sum -= 40;
-    if(x[7]) Tracking_Sum -= 60;
+  if(TrkI2C_IrSensorNumber > 0 && TrkI2C_IrSensorNumber <4) {
+    if(TrkI2C_x[1]) Tracking_Sum += 80;
+    if(TrkI2C_x[2]) Tracking_Sum += 40;
+    if(TrkI2C_x[3]) Tracking_Sum += 30;
+    if(TrkI2C_x[4]) Tracking_Sum += 10;
+    if(TrkI2C_x[5]) Tracking_Sum += 5;
+    if(TrkI2C_x[6]) Tracking_Sum -= 5;
+    if(TrkI2C_x[7]) Tracking_Sum -= 10;
+    if(TrkI2C_x[8]) Tracking_Sum -= 30;
+    if(TrkI2C_x[9]) Tracking_Sum -= 40;
+    if(TrkI2C_x[10]) Tracking_Sum -= 80;
   }
 
   float Kp = 1.0f; // 循迹比例
-  float Kd = 0.4f; // 循迹微分（抑制震荡）
+  float Kd = 0.3f; // 循迹微分（抑制震荡）
   // 3. PD 控制器计算
-  int last_tracking_error = 0;
+  static int last_tracking_error = 0;
   int error_change = Tracking_Sum - last_tracking_error;
 
   int adjustpwm = (int)(Kp * Tracking_Sum + Kd * error_change);
   last_tracking_error = Tracking_Sum;
 
-  Left_Control(1, irSpeed - adjustpwm);      // ✅ IRR_SPEED → Speed
-  Right_Control(1, irSpeed + adjustpwm);     // ✅ IRR_SPEED → Speed
-}
-
-
-
-
-// IO口巡线探头的处理,遇黑线，指示灯亮，低电平，输出0
-int track_deal_sensor(uint8_t s[]) 
-{
-  IrSensorNumber=0;
-  s[0] = DL_GPIO_readPins(IR_X_X1_PORT, IR_X_X1_PIN) > 0 ? 1 : 0;
-  s[1] = DL_GPIO_readPins(IR_X_X2_PORT, IR_X_X2_PIN) > 0 ? 1 : 0;
-  s[2] = DL_GPIO_readPins(IR_X_X3_PORT, IR_X_X3_PIN) > 0 ? 1 : 0;
-  s[3] = DL_GPIO_readPins(IR_X_X4_PORT, IR_X_X4_PIN) > 0 ? 1 : 0;
-  s[4] = DL_GPIO_readPins(IR_X_X5_PORT, IR_X_X5_PIN) > 0 ? 1 : 0;
-  s[5] = DL_GPIO_readPins(IR_X_X6_PORT, IR_X_X6_PIN) > 0 ? 1 : 0;
-  s[6] = DL_GPIO_readPins(IR_X_X7_PORT, IR_X_X7_PIN) > 0 ? 1 : 0;
-  s[7] = DL_GPIO_readPins(IR_X_X8_PORT, IR_X_X8_PIN) > 0 ? 1 : 0;
-  for(int i=0;i<8;i++)
-  {
-    IrSensorNumber+=s[i];
-  }
-  return IrSensorNumber;
+  Left_Control(1, irSpeed - adjustpwm); 
+  Right_Control(1, irSpeed + adjustpwm);
+  return;
 }
 
 // ================== 陀螺仪闭环直线行走函数 ==================

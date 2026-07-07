@@ -13,9 +13,9 @@ extern volatile unsigned long tick_ms;
 //电机控制
 extern int k1;
 extern int k2;
-extern int l, r;
+extern int Current_Speed_Left;
+extern int Current_Speed_Right;
 extern int32_t Left_count, Right_count;
-extern int SpeLeft[1000], SpeRight[1000];
 extern float Current_Dir;
 extern volatile uint8_t gEchoData;
 extern int32_t Left_count;
@@ -27,8 +27,15 @@ typedef struct pid_Controller
     float Kp;
     float Ki;
     float Kd;
+    int Error;
+    int Last_Error;
+    int Last_Last_Error;
+    float Integral;
 }PID;
-extern PID SpeedPID;
+extern PID SpeedPID_L;
+extern PID SpeedPID_R;
+extern PID TurnPID;
+extern PID AnglePID;
 
 typedef struct SpeedCondition
 {
@@ -92,23 +99,27 @@ extern struct Data Yuntai;
 
 
 //Move part
-extern uint8_t x[8] ;
+extern uint8_t x[12] ;
 extern uint16_t IrSensorNumber;
 extern int last_tracking_error;
 extern int indexx_move;
-
-
+extern int32_t encoderLeftCount;
+extern int32_t encoderRightCount;
+extern int8_t encoderFlag;
+extern volatile uint8_t speedControlTick;
 
 //AssignmentChoose
 extern uint8_t assignmentFlag;
 extern uint8_t Number_of_circle;
 extern void (*assignment_function[8])(void);
 extern uint8_t shapeFlag;  // 0:圆形, 1:正方形, 2:三角形, 3:椭圆形
+
+
 //任务运行状态及参数
 extern uint8_t LeftTurnFlag;
 extern uint8_t RightTurnFlag;
 extern uint8_t TurnOverFlag;
-
+extern int stageFlag;
 
 //超声波模块
 extern uint32_t Distance;

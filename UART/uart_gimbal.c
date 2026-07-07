@@ -1,5 +1,5 @@
 #include"interrupt.h"
-#include "K230.h"
+#include "uart_gimbal.h"
 #include "string.h"
 #include "stdlib.h"
 #include "global.h"

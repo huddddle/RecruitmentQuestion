@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (c) 2021, Texas Instruments Incorporated
  * All rights reserved.
  *
@@ -29,7 +29,7 @@
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "K230.h"
+#include "uart_gimbal.h"
 #include "servo.h"
 #include "main.h"
 #include "Motor.h"
@@ -44,12 +44,14 @@
 #include"interrupt.h"
 #include "global.h"
 #include "wit.h"
+#include "trackingiic.h"
+#include "adc_angle.h"
 
 uint8_t oled_buffer[64];
 volatile uint8_t gEchoData = 0;
 void (*assignment_function[8])(void)=
 {
-  assignment0,      // 0: 没有任务
+  assignment0, 
   assignment1, 
   assignment2, 
   assignment3, 
@@ -58,52 +60,65 @@ void (*assignment_function[8])(void)=
 };
 
 int main(void) 
-{
+ {
   SYSCFG_DL_init();
   SysTick_Init();
 
-  OLED_Init(); // 屏幕初始化
-  WIT_Init();  // 陀螺仪初始化
-  // K230_Init(); // 与K230串口通信部分初始化
-  // Servo_Init();//云台初始化
-  Speed_Init();// 定时器和编码器测速部分
-  Ultrasonic_Init();
+  OLED_Init(); 
+  WIT_Init();
 
-  // 电机转速控制
+  // 和AI通信的串口进行初始化
+  NVIC_ClearPendingIRQ(UART_Gimbal_INST_INT_IRQN);
+  NVIC_EnableIRQ(UART_Gimbal_INST_INT_IRQN);
+
+  // Servo_Init();
+  NVIC_EnableIRQ(TIMER_SwingUp_INST_INT_IRQN);   //开启角度采集中断 
+  Speed_Init();
+
   Left_Control(1, 0);
   Right_Control(1, 0);
 
-
-  //运动圈数初始化
   AssignmentChoose();
 
-  //OLED信息显示
-  OLED_ShowString(0, 0, (uint8_t *)"AssiFlag:", 8);
-  OLED_ShowString(0, 2, (uint8_t *)"Crossing:", 8);
-  OLED_ShowString(0, 4, (uint8_t *)"Yaw:", 8);
-  OLED_ShowString(0, 6, (uint8_t *)"Status:", 8);
+  OLED_ShowString(0, 0, (uint8_t *)"Figure:", 8);
+  OLED_ShowString(0, 2, (uint8_t *)"Stage:", 8);
+  OLED_ShowString(0, 4, (uint8_t *)"AssiFlag:", 8);
+  OLED_ShowString(0, 6, (uint8_t *)"SenNumber:", 8);
+
+  ADC_Angle_Init();
 
   while (1) 
   {    
-    // 显示 assignmentFlag
-    sprintf((char *)oled_buffer, "%d", turnCompleted);
-    OLED_ShowString(9 * 8, 0, oled_buffer, 16);
-    
-    // 显示 CrossingFlag
-    sprintf((char *)oled_buffer, "%d", turnFlag);
-    OLED_ShowString(9 * 8, 2, oled_buffer, 16);
-    
-    // 显示 CrossingFlag (格式化版本)
-    sprintf((char *)oled_buffer, "%-6.1f", wit_data.yaw);
+
+    sprintf((char *)oled_buffer, "%d", stageFlag);
+    OLED_ShowString(7 * 8, 2, oled_buffer, 16);
+
+  
+    sprintf((char *)oled_buffer, "%d", assignmentFlag);
     OLED_ShowString(9 * 8, 4, oled_buffer, 16);
-
-    // sprintf((char *)oled_buffer, "%-6.4f", wit_data.yaw);
-    // OLED_ShowString(9 * 8, 6, oled_buffer, 16);
-
-    assignment_function[assignmentFlag]();
+      
+    sprintf((char *)oled_buffer, "%d", TrkI2C_IrSensorNumber);
+    OLED_ShowString(9 * 8, 6, oled_buffer, 16);
 
 
-    // //Add
-    // Distance=Read_Ultrasonic();
+   assignment_function[assignmentFlag]();
+    // DistanceControl(650, 1);
+
+  }
+}
+
+char getdata;
+void UART_Gimbal_INST_IRQHandler(void)
+{
+ switch (DL_UART_Main_getPendingInterrupt(UART_Gimbal_INST)) {
+  case DL_UART_MAIN_IIDX_RX: // 修复 1：加上了冒号，去掉了多余括号
+    // 修复 2：修正了接收函数的名称
+    getdata = DL_UART_Main_receiveData(UART_Gimbal_INST);
+    DL_GPIO_togglePins(LED_PORT,LED_USER_LED_PIN);
+    // 这里写你的数据处理逻辑...
+    break;
+
+  default: // 修复 3：添加 default 分支兜底，消除 18 个未处理枚举的警告
+    break;
   }
 }

@@ -24,19 +24,19 @@ void TB6612_Motor_Stop(void)
 /******************************************************************
  * 函 数 名 称：AO_Control
  * 函 数 说 明：A端口电机控制
- * 函 数 形 参：dir旋转方向 1正转0反转   speed旋转速度，范围（0 ~ per-1）
+ * 函 数 形 参：dir旋转方向 1正转0反转   PWM旋转速度，范围（0 ~ per-1）
  * 函 数 返 回：无
  * 作       者：LCKFB
- * 备       注：speed 0-1000
+ * 备       注：PWM 0-1000
 ******************************************************************/
-void Right_Control(uint8_t dir, int32_t speed)
+void Right_Control(uint8_t dir, int32_t PWM)
 {
-  if (speed > 950 || dir > 1) {
-    speed = 950;
+  if (PWM > 800 || dir > 1) {
+    PWM = 800;
   }
-  if (speed <= 0) 
+  if (PWM <= 0) 
   {
-    speed = 10;
+    PWM = 0;
   }
 
   if (dir == 1) {
@@ -47,7 +47,7 @@ void Right_Control(uint8_t dir, int32_t speed)
     AIN2_OUT(1);
   }
 
-    DL_TimerG_setCaptureCompareValue(PWM_0_INST, speed, GPIO_PWM_0_C0_IDX);
+    DL_TimerG_setCaptureCompareValue(PWM_0_INST, PWM, GPIO_PWM_0_C0_IDX);
 }
 
 
@@ -55,18 +55,18 @@ void Right_Control(uint8_t dir, int32_t speed)
 /******************************************************************
  * 函 数 名 称：BO_Control
  * 函 数 说 明：B端口电机控制
- * 函 数 形 参：dir旋转方向 1正转0反转   speed旋转速度，范围（0 ~ per-1）
+ * 函 数 形 参：dir旋转方向 1正转0反转   PWM旋转速度，范围（0 ~ per-1）
  * 函 数 返 回：无
  * 作       者：LCKFB
  * 备       注：speed 0-1000
 ******************************************************************/
-void Left_Control(uint8_t dir, int32_t speed)
+void Left_Control(uint8_t dir, int32_t PWM)
 {
-  if (speed > 950 || dir > 1) {
-    speed = 950;
+  if (PWM > 800 || dir > 1) {
+    PWM = 800;
   }
-  if (speed < 0) {
-    speed = 10;
+  if (PWM < 0) {
+    PWM = 0;
   }
 
     if( dir == 1 )
@@ -80,16 +80,16 @@ void Left_Control(uint8_t dir, int32_t speed)
         BIN2_OUT(1);
     }
 
-    DL_TimerG_setCaptureCompareValue(PWM_0_INST, speed, GPIO_PWM_0_C1_IDX);
+    DL_TimerG_setCaptureCompareValue(PWM_0_INST, PWM, GPIO_PWM_0_C1_IDX);
 }
 
 /******************************************************************
  * 函 数 名 称：motion_car_control
  * 函 数 说 明：电机偏离控制
- * 函 数 形 参：dir旋转方向 1正转0反转   speed旋转速度，范围（0 ~ per-1）
+ * 函 数 形 参：dir旋转方向 1正转0反转   PWM旋转速度，范围（0 ~ per-1）
  * 函 数 返 回：无
  * 作       者：
- * 备       注：speed 0-1000
+ * 备       注：PWM 0-1000
 ******************************************************************/
 void motion_car_control(int16_t V_x, int16_t V_y, int16_t V_z)
 {

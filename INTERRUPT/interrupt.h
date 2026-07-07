@@ -6,7 +6,11 @@
 void GROUP1_IRQHandler(void);
 int TimeCount(uint32_t duration, uint32_t turn_start_time);
 
-
+extern int Current_Speed_Left ;
+extern int Current_Speed_Right ;
+// 在 interrupt.h 中
+extern volatile int32_t Last_Left_count;
+extern volatile int32_t Last_Right_count;
 
 // 假设这是你的系统滴答时钟获取函数
 extern uint32_t GetTickMs(void); 
