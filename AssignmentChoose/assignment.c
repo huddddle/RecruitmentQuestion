@@ -17,7 +17,7 @@
 #include "move.h"
 #include "ai_sending.h"
 
-
+//github test
 static SoftTimer_t Assitimer = {0, false};
 uint8_t LeftTurnFlag=0;
 uint8_t RightTurnFlag=0;
