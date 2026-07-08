@@ -29,6 +29,8 @@
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
+
 #include "uart_gimbal.h"
 #include "servo.h"
 #include "main.h"
@@ -47,6 +49,7 @@
 #include "trackingiic.h"
 #include "adc_angle.h"
 
+//  ryx test
 uint8_t oled_buffer[64];
 volatile uint8_t gEchoData = 0;
 void (*assignment_function[8])(void)=
