@@ -23,7 +23,6 @@ extern uint8_t TrkI2C_x[12];
 
 int indexx_move = 0;
 int EnableCrossingFlag=1;//控制转完之后不在转向
-uint16_t IrSensorNumber=0;
 SoftTimer_t ModuleTrackingTimer = {0, false};
 SoftTimer_t ParkingTimer = {0, false};
 extern uint8_t shapeFlag;  // 0:圆形, 1:正方形, 2:三角形, 3:椭圆形

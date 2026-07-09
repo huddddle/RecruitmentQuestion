@@ -1,10 +1,13 @@
 #include "trackingiic.h"
+#include "global.h"
+#include "oled_hardware_i2c.h"
+#include <stdio.h>
 
-uint8_t TrkI2C_x[12]                = {0};
-uint16_t TrkI2C_IrSensorNumber      = 0;
-int TrkI2C_Tracking_Sum             = 0;
-int TrkI2C_last_tracking_error      = 0;
-int TrkI2C_gTrackErrorChange        = 0;
+uint8_t x[12]                = {0};
+uint16_t IrSensorNumber      = 0;
+int Tracking_Sum             = 0;
+int last_tracking_error      = 0;
+int gTrackErrorChange        = 0;
 uint16_t gTrackRawState12    = 0U;
 volatile bool gTrackSensorOnline = false;
 
@@ -18,7 +21,12 @@ static const int gTrackWeights[12] = {
 #define TRACK_SENSOR_RAW_MASK                (0x0FFFU)
 #define TRACK_SENSOR_I2C_TIMEOUT_LOOPS       (20000U)
 
-#if defined(I2C_TR_INST)
+// 与OLED共用I2C接口
+#if !defined(TRACK_SENSOR_I2C_INST) && defined(I2C_OLED_INST)
+#define TRACK_SENSOR_I2C_INST                I2C_OLED_INST
+#endif
+
+#if defined(TRACK_SENSOR_I2C_INST)
 #define TRACK_SENSOR_I2C_READY               (1)
 #else
 #define TRACK_SENSOR_I2C_READY               (0)
@@ -49,9 +57,9 @@ static bool trackSensorControllerHasError(void)
     const uint32_t interruptMask = DL_I2C_INTERRUPT_CONTROLLER_NACK |
                                    DL_I2C_INTERRUPT_CONTROLLER_ARBITRATION_LOST;
 
-    return (((DL_I2C_getControllerStatus(I2C_TR_INST) &
+    return (((DL_I2C_getControllerStatus(TRACK_SENSOR_I2C_INST) &
               DL_I2C_CONTROLLER_STATUS_ERROR) != 0U) ||
-            (DL_I2C_getRawInterruptStatus(I2C_TR_INST, interruptMask) != 0U));
+            (DL_I2C_getRawInterruptStatus(TRACK_SENSOR_I2C_INST, interruptMask) != 0U));
 #else
     return true;
 #endif
@@ -63,11 +71,11 @@ static void trackSensorRecoverController(void)
     const uint32_t interruptMask = DL_I2C_INTERRUPT_CONTROLLER_NACK |
                                    DL_I2C_INTERRUPT_CONTROLLER_ARBITRATION_LOST;
 
-    DL_I2C_clearInterruptStatus(I2C_TR_INST, interruptMask);
-    DL_I2C_flushControllerTXFIFO(I2C_TR_INST);
+    DL_I2C_clearInterruptStatus(TRACK_SENSOR_I2C_INST, interruptMask);
+    DL_I2C_flushControllerTXFIFO(TRACK_SENSOR_I2C_INST);
 
-    while (!DL_I2C_isControllerRXFIFOEmpty(I2C_TR_INST)) {
-        (void) DL_I2C_receiveControllerData(I2C_TR_INST);
+    while (!DL_I2C_isControllerRXFIFOEmpty(TRACK_SENSOR_I2C_INST)) {
+        (void) DL_I2C_receiveControllerData(TRACK_SENSOR_I2C_INST);
     }
 #endif
 }
@@ -82,7 +90,7 @@ static bool trackSensorWaitForIdle(void)
             return false;
         }
 
-        if ((DL_I2C_getControllerStatus(I2C_TR_INST) &
+        if ((DL_I2C_getControllerStatus(TRACK_SENSOR_I2C_INST) &
              DL_I2C_CONTROLLER_STATUS_IDLE) != 0U) {
             return true;
         }
@@ -102,7 +110,7 @@ static bool trackSensorWaitForRxData(void)
             return false;
         }
 
-        if (!DL_I2C_isControllerRXFIFOEmpty(I2C_TR_INST)) {
+        if (!DL_I2C_isControllerRXFIFOEmpty(TRACK_SENSOR_I2C_INST)) {
             return true;
         }
     }
@@ -127,8 +135,8 @@ static bool trackSensorReadRegisterBytes(uint8_t registerAddress,
     }
 
     trackSensorRecoverController();
-    DL_I2C_transmitControllerData(I2C_TR_INST, registerAddress);
-    DL_I2C_startControllerTransfer(I2C_TR_INST, TRACK_SENSOR_PCA9555_ADDR_7BIT,
+    DL_I2C_transmitControllerData(TRACK_SENSOR_I2C_INST, registerAddress);
+    DL_I2C_startControllerTransfer(TRACK_SENSOR_I2C_INST, TRACK_SENSOR_PCA9555_ADDR_7BIT,
         DL_I2C_CONTROLLER_DIRECTION_TX, 1U);
 
     if (!trackSensorWaitForIdle()) {
@@ -137,7 +145,7 @@ static bool trackSensorReadRegisterBytes(uint8_t registerAddress,
     }
 
     trackSensorRecoverController();
-    DL_I2C_startControllerTransfer(I2C_TR_INST, TRACK_SENSOR_PCA9555_ADDR_7BIT,
+    DL_I2C_startControllerTransfer(TRACK_SENSOR_I2C_INST, TRACK_SENSOR_PCA9555_ADDR_7BIT,
         DL_I2C_CONTROLLER_DIRECTION_RX, length);
 
     for (index = 0U; index < length; ++index) {
@@ -146,7 +154,7 @@ static bool trackSensorReadRegisterBytes(uint8_t registerAddress,
             return false;
         }
 
-        buffer[index] = DL_I2C_receiveControllerData(I2C_TR_INST);
+        buffer[index] = DL_I2C_receiveControllerData(TRACK_SENSOR_I2C_INST);
     }
 
     if (!trackSensorWaitForIdle()) {
@@ -168,33 +176,33 @@ int trackSensorResetData(void)
     uint32_t index;
 
     gTrackRawState12 = 0U;
-    TrkI2C_IrSensorNumber   = 0U;
-    TrkI2C_Tracking_Sum     = 0;
-    TrkI2C_gTrackErrorChange = 0;
+    IrSensorNumber   = 0U;
+    Tracking_Sum     = 0;
+    gTrackErrorChange = 0;
 
     for (index = 0U; index < 12U; ++index) {
-        TrkI2C_x[index] = 0U;
+        x[index] = 0U;
     }
-    return TrkI2C_IrSensorNumber;
+    return IrSensorNumber;
 }
 
 static void trackSensorUpdateDecodedData(uint16_t rawState)
 {
     uint32_t index;
-    int previousError = TrkI2C_Tracking_Sum;
+    int previousError = Tracking_Sum;
 
     gTrackRawState12 = rawState;
-    TrkI2C_IrSensorNumber   = 0U;
-    TrkI2C_Tracking_Sum     = 0;
+    IrSensorNumber   = 0U;
+    Tracking_Sum     = 0;
 
     for (index = 0U; index < 12U; ++index) {
-        TrkI2C_x[index] = (uint8_t) ((rawState >> (11U - index)) & 0x01U);
-        TrkI2C_IrSensorNumber += TrkI2C_x[index];
-        TrkI2C_Tracking_Sum += (int) TrkI2C_x[index] * gTrackWeights[index];
+        x[index] = (uint8_t) ((rawState >> (11U - index)) & 0x01U);
+        IrSensorNumber += x[index];
+        Tracking_Sum += (int) x[index] * gTrackWeights[index];
     }
 
-    TrkI2C_gTrackErrorChange   = TrkI2C_Tracking_Sum - previousError;
-    TrkI2C_last_tracking_error = TrkI2C_Tracking_Sum;
+    gTrackErrorChange   = Tracking_Sum - previousError;
+    last_tracking_error = Tracking_Sum;
 }
 
 bool trackSensorUpdate(void)
@@ -217,4 +225,27 @@ bool trackSensorUpdate(void)
     gTrackSensorOnline = true;
     trackSensorIndicatorSet(true);
     return true;
+}
+
+void trackSensorOledShow(void)
+{
+    char trackBits[13];
+    char valueBuffer[32];
+    uint32_t index;
+
+    for (index = 0U; index < 12U; ++index) {
+        trackBits[index] = x[index] ? '1' : '0';
+    }
+    trackBits[12] = '\0';
+
+    OLED_ShowString(0, 1, (uint8_t *) "Track:", 8);
+    OLED_ShowString(36, 1, (uint8_t *) trackBits, 8);
+
+    OLED_ShowString(0, 3, (uint8_t *) "Cnt:", 8);
+    OLED_ShowNum(30, 3, IrSensorNumber, 2, 8);
+    OLED_ShowString(84, 3, (uint8_t *) (gTrackSensorOnline ? "ON" : "OFF"), 8);
+
+    OLED_ShowString(0, 5, (uint8_t *) "Sum:", 8);
+    (void) snprintf(valueBuffer, sizeof(valueBuffer), "%d", Tracking_Sum);
+    OLED_ShowString(30, 5, (uint8_t *) valueBuffer, 8);
 }

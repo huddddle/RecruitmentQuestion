@@ -92,6 +92,7 @@ int main(void)
 
   while (1) 
   {    
+    trackSensorUpdate();
 
     sprintf((char *)oled_buffer, "%d", stageFlag);
     OLED_ShowString(7 * 8, 2, oled_buffer, 16);
@@ -102,6 +103,8 @@ int main(void)
       
     sprintf((char *)oled_buffer, "%d", TrkI2C_IrSensorNumber);
     OLED_ShowString(9 * 8, 6, oled_buffer, 16);
+
+    trackSensorOledShow();
 
 
    assignment_function[assignmentFlag]();
