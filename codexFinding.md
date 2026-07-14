@@ -1146,3 +1146,217 @@ assignmentFlag = CameraData[0];
 4. SysConfig 里 `UART_Gimbal` 只开 RX interrupt，不开 RX DMA 和 TX interrupt。
 5. `UART_Gimbal_INST_IRQHandler` 最终会由宏展开成 `UART3_IRQHandler`，和生成文件里的中断向量匹配。
 6. 主循环周期性调用 `Gimbal_Process()`，不要在串口中断里直接做 `strtok/strtof` 这类解析工作。
+
+## 关于 `DistanceControlWithYaw()` 倒车距离控制的建议
+
+### 结论
+
+不建议只靠在 `DistanceControlWithYaw()` 初始化时把 `startEncoder_L`、`encoderLeftCount`、`encoderRightCount` 清零来解决倒车问题。
+
+这个办法短期看起来能避开“倒车时编码器变成负数”的现象，但它不是最稳的方案，原因有三个：
+
+1. `encoderLeftCount` 和 `encoderRightCount` 是中断里持续更新的全局累计值，距离控制函数直接清零它们，会影响其他依赖编码器的模块。
+2. 速度采样中断里还有 `Last_Left_count` 和 `Last_Right_count`。如果只清当前编码器计数，不同时清这两个历史计数，下一次 `Current_Speed_Left/Right` 会突然出现一个很大的跳变，速度 PID 可能猛冲一下。
+3. 你当前倒车出问题的关键不是“起点不是 0”，而是 `avg_delta` 在倒车时可能是负数，导致距离 PID 的误差一直变大：`target - (-delta)`，所以 PID 没法随着接近目标而减速。
+
+更推荐的思路是：不要强行改全局编码器累计值，而是在本次距离控制内部把编码器增量转换成“已经走过的正距离”。也就是：
+
+```c
+left_delta = encoderLeftCount - startEncoder_L;
+right_delta = encoderRightCount - startEncoder_R;
+
+left_travel = abs(left_delta);
+right_travel = abs(right_delta);
+avg_travel = (left_travel + right_travel) / 2;
+```
+
+这样前进和倒车都用同一套距离 PID：目标距离永远是正数，已经行驶距离也永远是正数。
+
+### 对你提出的清零方案的评价
+
+如果你确实想在每段运动开始时清零编码器，也必须这样做才相对安全：
+
+```c
+__disable_irq();
+encoderLeftCount = 0;
+encoderRightCount = 0;
+Last_Left_count = 0;
+Last_Right_count = 0;
+__enable_irq();
+
+startEncoder_L = 0;
+startEncoder_R = 0;
+```
+
+也就是说，不能只清 `encoderLeftCount` 和 `encoderRightCount`，还要同步清速度采样使用的 `Last_Left_count`、`Last_Right_count`。否则速度反馈会被污染。
+
+但是我仍然更建议不要清全局编码器，而是保留累计计数，只记录本段运动的起点，再算相对增量。这样模块之间互相影响最小。
+
+### 当前函数里还有两个明显问题
+
+第一，你已经算出了 PID 解算后的：
+
+```c
+target_speed_L
+target_speed_R
+```
+
+但最后真正执行的是：
+
+```c
+SpeedControl(150 + yaw_correction, 150 - yaw_correction, dir);
+```
+
+这等于放弃了距离 PID 的 `base_speed`，所以小车不会在接近目标时自然减速。为了实现“PID + 编码器距离控制”，应该改成：
+
+```c
+SpeedControl(target_speed_L, target_speed_R, dir);
+```
+
+第二，倒车时 yaw 纠偏方向通常要反过来。因为同样的“左轮快、右轮慢”，前进和倒车造成的车身转向方向是相反的。所以建议：
+
+```c
+if (dir == 0) {
+    yaw_correction = -yaw_correction;
+}
+```
+
+如果实车测试发现纠偏方向反了，再把左右两侧的 `+ yaw_correction` 和 `- yaw_correction` 对调即可。
+
+### 推荐标准代码
+
+下面这版不清零全局编码器，而是在函数内部使用相对增量，并用绝对行驶量解决倒车距离判断问题。
+
+```c
+static int32_t AbsInt32(int32_t value)
+{
+    return value >= 0 ? value : -value;
+}
+
+int DistanceControlWithYaw(int target_distance, int dir, float target_yaw)
+{
+    static float startYaw = 0.0f;
+
+    if (!speedControlTick) {
+        return 0;
+    }
+    speedControlTick = 0;
+
+    if (!AbsoluateEncoder) {
+        AbsoluateEncoder = (int32_t)((float)target_distance /
+                           (2.0f * Pi * Radios) * codePerCircle);
+
+        __disable_irq();
+        startEncoder_L = encoderLeftCount;
+        startEncoder_R = encoderRightCount;
+        __enable_irq();
+
+        startYaw = target_yaw;
+        Reset_PID(&DistPID_L);
+        Reset_PID(&DistPID_R);
+    }
+
+    int32_t current_left;
+    int32_t current_right;
+
+    __disable_irq();
+    current_left = encoderLeftCount;
+    current_right = encoderRightCount;
+    __enable_irq();
+
+    int32_t left_delta = current_left - startEncoder_L;
+    int32_t right_delta = current_right - startEncoder_R;
+
+    int32_t left_travel = AbsInt32(left_delta);
+    int32_t right_travel = AbsInt32(right_delta);
+    int32_t avg_travel = (left_travel + right_travel) / 2;
+
+    if (avg_travel >= AbsoluateEncoder) {
+        SpeedControl(0, 0, dir);
+        AbsoluateEncoder = 0;
+        startEncoder_L = 0;
+        startEncoder_R = 0;
+        Reset_PID(&DistPID_L);
+        Reset_PID(&DistPID_R);
+        encoderFlag++;
+        return 1;
+    }
+
+    DistPID_L.Error = AbsoluateEncoder - avg_travel;
+    DistPID_L.Integral += DistPID_L.Error;
+    DistPID_L.Integral = LimitInt(DistPID_L.Integral, -3000, 3000);
+
+    int base_speed = (int)(DistPID_L.Kp * DistPID_L.Error +
+                           DistPID_L.Ki * DistPID_L.Integral +
+                           DistPID_L.Kd * (DistPID_L.Error - DistPID_L.Last_Error));
+    DistPID_L.Last_Error = DistPID_L.Error;
+
+    base_speed = LimitInt(base_speed, 0, DISTANCE_SPEED_LIMIT);
+
+    float yaw_error = NormalizeYawError(wit_data.yaw - startYaw);
+    int yaw_correction = (int)(YAW_CORRECTION_KP * yaw_error);
+    yaw_correction = LimitInt(yaw_correction,
+                              -YAW_CORRECTION_LIMIT,
+                              YAW_CORRECTION_LIMIT);
+
+    if (dir == 0) {
+        yaw_correction = -yaw_correction;
+    }
+
+    int target_speed_L = base_speed + yaw_correction;
+    int target_speed_R = base_speed - yaw_correction;
+
+    target_speed_L = LimitInt(target_speed_L, 0, DISTANCE_SPEED_LIMIT);
+    target_speed_R = LimitInt(target_speed_R, 0, DISTANCE_SPEED_LIMIT);
+
+    SpeedControl(target_speed_L, target_speed_R, dir);
+
+    return 0;
+}
+```
+
+### 如果倒车速度 PID 仍然异常
+
+上面的代码解决的是“距离 PID 倒车时误差方向错误”的问题。但你的 `SpeedControl()` 现在仍然直接使用：
+
+```c
+Current_Speed_Left
+Current_Speed_Right
+```
+
+如果倒车时这两个速度反馈是负数，而目标速度是正数，速度 PID 也可能不舒服。更标准的处理是让 `SpeedControl()` 根据 `dir` 把速度反馈统一成正值：
+
+```c
+void SpeedControl(int target_speed_L, int target_speed_R, int dir)
+{
+    int feedback_L = Current_Speed_Left;
+    int feedback_R = Current_Speed_Right;
+
+    if (dir == 0) {
+        feedback_L = -feedback_L;
+        feedback_R = -feedback_R;
+    }
+
+    Delta_PWM_L = Speed(&SpeedPID_L, feedback_L, target_speed_L);
+    Delta_PWM_R = Speed(&SpeedPID_R, feedback_R, target_speed_R);
+
+    if (Delta_PWM_L > 300)  Delta_PWM_L = 300;
+    if (Delta_PWM_L < -300) Delta_PWM_L = -300;
+
+    if (Delta_PWM_R > 300)  Delta_PWM_R = 300;
+    if (Delta_PWM_R < -300) Delta_PWM_R = -300;
+
+    Left_Control(dir, target_speed_L + Delta_PWM_L);
+    Right_Control(dir, target_speed_R + Delta_PWM_R);
+}
+```
+
+注意：这段成立的前提是“前进时编码器速度为正，倒车时编码器速度为负”。如果实车上某一侧相反，要先统一编码器方向。
+
+### 最小验证步骤
+
+1. 把车架空，前进低速跑，确认 `encoderLeftCount` 和 `encoderRightCount` 都朝同一方向变化。
+2. 再倒车低速跑，确认两者都朝相反方向变化。
+3. 打印 `left_delta`、`right_delta`、`avg_travel`，确认倒车时 `avg_travel` 仍然从 0 增加到目标编码器值。
+4. 先把 `YAW_CORRECTION_KP` 调小，例如 `1.0f`，确认距离控制正常后再逐渐加大。
+5. 如果倒车纠偏越修越偏，把 `yaw_correction` 的符号或左右轮加减关系对调。

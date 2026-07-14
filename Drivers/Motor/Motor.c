@@ -71,13 +71,13 @@ void Left_Control(uint8_t dir, int32_t PWM)
 
     if( dir == 1 )
     {
-        BIN1_OUT(1);
-        BIN2_OUT(0);
+        BIN1_OUT(0);
+        BIN2_OUT(1);
     }
     else
     {
-        BIN1_OUT(0);
-        BIN2_OUT(1);
+        BIN1_OUT(1);
+        BIN2_OUT(0);
     }
 
     DL_TimerG_setCaptureCompareValue(PWM_0_INST, PWM, GPIO_PWM_0_C1_IDX);

@@ -1,8 +1,8 @@
 /**
  * These arguments were used when this file was generated. They will be automatically applied on subsequent loads
  * via the GUI or CLI. Run CLI with '--help' for additional information on how to override these arguments.
- * @cliArgs --device "MSPM0G350X" --part "Default" --package "LQFP-64(PM)" --product "mspm0_sdk@2.04.00.06"
- * @v2CliArgs --device "MSPM0G3507" --package "LQFP-64(PM)" --product "mspm0_sdk@2.04.00.06"
+ * @cliArgs --device "MSPM0G350X" --part "Default" --package "LQFP-64(PM)" --product "mspm0_sdk@2.05.00.05"
+ * @v2CliArgs --device "MSPM0G3507" --package "LQFP-64(PM)" --product "mspm0_sdk@2.05.00.05"
  * @versions {"tool":"1.24.0+4110"}
  */
 
@@ -208,14 +208,14 @@ I2C1.$name                             = "I2C_OLED";
 I2C1.basicEnableController             = true;
 I2C1.peripheral.sdaPin.$assign         = "PA16";
 I2C1.peripheral.sclPin.$assign         = "PA17";
-I2C1.sdaPinConfig.$name                = "ti_driverlib_gpio_GPIOPinGeneric8";
 I2C1.sdaPinConfig.hideOutputInversion  = scripting.forceWrite(false);
 I2C1.sdaPinConfig.onlyInternalResistor = scripting.forceWrite(false);
 I2C1.sdaPinConfig.passedPeripheralType = scripting.forceWrite("Digital");
-I2C1.sclPinConfig.$name                = "ti_driverlib_gpio_GPIOPinGeneric9";
+I2C1.sdaPinConfig.$name                = "ti_driverlib_gpio_GPIOPinGeneric8";
 I2C1.sclPinConfig.hideOutputInversion  = scripting.forceWrite(false);
 I2C1.sclPinConfig.onlyInternalResistor = scripting.forceWrite(false);
 I2C1.sclPinConfig.passedPeripheralType = scripting.forceWrite("Digital");
+I2C1.sclPinConfig.$name                = "ti_driverlib_gpio_GPIOPinGeneric9";
 
 PWM1.$name                      = "PWM_0";
 PWM1.timerStartTimer            = true;
@@ -302,8 +302,6 @@ UART1.DMA_CHANNEL_RX.dstLength         = "BYTE";
 UART1.DMA_CHANNEL_RX.srcLength         = "BYTE";
 
 UART2.$name                            = "UART_BT";
-UART2.peripheral.rxPin.$assign         = "PA9";
-UART2.peripheral.txPin.$assign         = "PA8";
 UART2.txPinConfig.direction            = scripting.forceWrite("OUTPUT");
 UART2.txPinConfig.hideOutputInversion  = scripting.forceWrite(false);
 UART2.txPinConfig.onlyInternalResistor = scripting.forceWrite(false);
@@ -318,8 +316,9 @@ UART3.enabledDMARXTriggers              = "DL_UART_DMA_INTERRUPT_RX";
 UART3.targetBaudRate                    = 115200;
 UART3.$name                             = "UART_Gimbal";
 UART3.enabledInterrupts                 = ["RX"];
-UART3.peripheral.rxPin.$assign          = "PA25";
-UART3.peripheral.txPin.$assign          = "PA26";
+UART3.peripheral.$assign                = "UART1";
+UART3.peripheral.rxPin.$assign          = "PA9";
+UART3.peripheral.txPin.$assign          = "PA8";
 UART3.txPinConfig.direction             = scripting.forceWrite("OUTPUT");
 UART3.txPinConfig.hideOutputInversion   = scripting.forceWrite(false);
 UART3.txPinConfig.onlyInternalResistor  = scripting.forceWrite(false);
@@ -379,8 +378,9 @@ TIMER1.peripheral.$suggestSolution               = "TIMG0";
 TIMER2.peripheral.$suggestSolution               = "TIMA0";
 UART1.peripheral.$suggestSolution                = "UART0";
 UART1.DMA_CHANNEL_RX.peripheral.$suggestSolution = "DMA_CH1";
-UART2.peripheral.$suggestSolution                = "UART1";
-UART3.peripheral.$suggestSolution                = "UART3";
+UART2.peripheral.$suggestSolution                = "UART3";
+UART2.peripheral.rxPin.$suggestSolution          = "PA13";
+UART2.peripheral.txPin.$suggestSolution          = "PA26";
 UART4.peripheral.$suggestSolution                = "UART2";
 UART4.peripheral.rxPin.$suggestSolution          = "PA22";
 UART4.peripheral.txPin.$suggestSolution          = "PA21";

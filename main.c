@@ -91,25 +91,24 @@ int main(void)
   ADC_Angle_Init();
 
   while (1) 
-  {    
+  {
     trackSensorUpdate();
 
     sprintf((char *)oled_buffer, "%d", stageFlag);
     OLED_ShowString(7 * 8, 2, oled_buffer, 16);
 
-  
     sprintf((char *)oled_buffer, "%d", assignmentFlag);
     OLED_ShowString(9 * 8, 4, oled_buffer, 16);
-      
+
     sprintf((char *)oled_buffer, "%d", TrkI2C_IrSensorNumber);
     OLED_ShowString(9 * 8, 6, oled_buffer, 16);
 
-    trackSensorOledShow();
+    // trackSensorOledShow();
+    assignment_function[assignmentFlag]();
+    //   DistanceControl(650, 1);
 
-
-   assignment_function[assignmentFlag]();
-    // DistanceControl(650, 1);
-
+    // Left_Control(1, 550);
+    // Right_Control(1, 550);
   }
 }
 

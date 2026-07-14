@@ -87,6 +87,7 @@ static int LimitInt(int value, int minValue, int maxValue)
     return value;
 }
 
+
 int DistanceControlWithYaw(int target_distance, int dir, float target_yaw)
 {
     static float startYaw = 0.0f;
@@ -97,19 +98,46 @@ int DistanceControlWithYaw(int target_distance, int dir, float target_yaw)
     speedControlTick = 0;
 
     if (!AbsoluateEncoder) {
-        AbsoluateEncoder = (int32_t)((float)target_distance / (2.0f * Pi * Radios) * codePerCircle);
+        AbsoluateEncoder = (int32_t)((float)target_distance /
+                           (2.0f * Pi * Radios) * codePerCircle);
+
+        __disable_irq();
         startEncoder_L = encoderLeftCount;
         startEncoder_R = encoderRightCount;
-        startYaw =  target_yaw;
+        __enable_irq();
+
+        startYaw = target_yaw;
         Reset_PID(&DistPID_L);
         Reset_PID(&DistPID_R);
     }
 
-    int32_t left_delta = encoderLeftCount - startEncoder_L;
-    int32_t right_delta = encoderRightCount - startEncoder_R;
-    int32_t avg_delta = (left_delta + right_delta) / 2;
+    int32_t current_left;
+    int32_t current_right;
 
-    DistPID_L.Error = AbsoluateEncoder - avg_delta;
+    __disable_irq();
+    current_left = encoderLeftCount;
+    current_right = encoderRightCount;
+    __enable_irq();
+
+    int32_t left_delta = current_left - startEncoder_L;
+    int32_t right_delta = current_right - startEncoder_R;
+
+    int32_t left_travel = AbsInt32(left_delta);
+    int32_t right_travel = AbsInt32(right_delta);
+    int32_t avg_travel = (left_travel + right_travel) / 2;
+
+    if (avg_travel >= AbsoluateEncoder) {
+        SpeedControl(0, 0, dir);
+        AbsoluateEncoder = 0;
+        startEncoder_L = 0;
+        startEncoder_R = 0;
+        Reset_PID(&DistPID_L);
+        Reset_PID(&DistPID_R);
+        encoderFlag++;
+        return 1;
+    }
+
+    DistPID_L.Error = AbsoluateEncoder - avg_travel;
     DistPID_L.Integral += DistPID_L.Error;
     DistPID_L.Integral = LimitInt(DistPID_L.Integral, -3000, 3000);
 
@@ -117,32 +145,29 @@ int DistanceControlWithYaw(int target_distance, int dir, float target_yaw)
                            DistPID_L.Ki * DistPID_L.Integral +
                            DistPID_L.Kd * (DistPID_L.Error - DistPID_L.Last_Error));
     DistPID_L.Last_Error = DistPID_L.Error;
-    base_speed = LimitInt(base_speed, -DISTANCE_SPEED_LIMIT, DISTANCE_SPEED_LIMIT);
+
+    base_speed = LimitInt(base_speed, 0, DISTANCE_SPEED_LIMIT);
 
     float yaw_error = NormalizeYawError(wit_data.yaw - startYaw);
     int yaw_correction = (int)(YAW_CORRECTION_KP * yaw_error);
-    yaw_correction = LimitInt(yaw_correction, -YAW_CORRECTION_LIMIT, YAW_CORRECTION_LIMIT);
+    yaw_correction = LimitInt(yaw_correction,
+                              -YAW_CORRECTION_LIMIT,
+                              YAW_CORRECTION_LIMIT);
 
-    int target_speed_L = base_speed + yaw_correction;
-    int target_speed_R = base_speed - yaw_correction;
-
-    target_speed_L = LimitInt(target_speed_L, -DISTANCE_SPEED_LIMIT, DISTANCE_SPEED_LIMIT);
-    target_speed_R = LimitInt(target_speed_R, -DISTANCE_SPEED_LIMIT, DISTANCE_SPEED_LIMIT);
-
-    if (target_speed_L < 0 || target_speed_R < 0) {
-        target_speed_L = 0;
-        target_speed_R = 0;
+    if (dir == 0) {
+        yaw_correction = -yaw_correction;
     }
+
+//为了迎合招新题 放弃使用基本距离的速度pid计算
+    // int target_speed_L = base_speed + yaw_correction;
+    // int target_speed_R = base_speed - yaw_correction;
+    int target_speed_L = 120 + yaw_correction;
+    int target_speed_R = 120 - yaw_correction;
+
+    target_speed_L = LimitInt(target_speed_L, 0, DISTANCE_SPEED_LIMIT);
+    target_speed_R = LimitInt(target_speed_R, 0, DISTANCE_SPEED_LIMIT);
 
     SpeedControl(target_speed_L, target_speed_R, dir);
-
-    if (avg_delta >= AbsoluateEncoder) {
-        AbsoluateEncoder = 0;
-        startEncoder_L = 0;
-        startEncoder_R = 0;
-        encoderFlag++;
-        return 1;
-    }
 
     return 0;
 }
@@ -156,4 +181,9 @@ void Reset_PID(Loc_PID *pid) {
     pid->Integral = 0;
     pid->Last_Error = 0;
     pid->Error = 0;
+}
+
+static int32_t AbsInt32(int32_t value)
+{
+    return value >= 0 ? value : -value;
 }

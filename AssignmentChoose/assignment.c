@@ -110,7 +110,7 @@ void assignment1(void)
   }
   else if (stageFlag == 1) 
   {
-    DistanceControlWithYaw(640, 1, Task1TargetYaw(90.0f));
+    DistanceControlWithYaw(530, 1, Task1TargetYaw(90.0f));
     if(encoderFlag == 1)
     { 
       stageFlag = 2; 
@@ -124,66 +124,66 @@ void assignment1(void)
   }
   else if (stageFlag == 3) 
   {
-    DistanceControlWithYaw(800, 1, Task1TargetYaw(0.0f));
+    DistanceControlWithYaw(200, 0, Task1TargetYaw(0.0f));
     if(encoderFlag == 2)
     { 
-      stageFlag = 4; 
+          /**************倒车完成 串口发送1 表示开始识别**************/
+      stageFlag++; 
       stop();
     } 
   }
   else if (stageFlag == 4) 
   {
-    Right_Turn(90);
-    if (turnCompleted == 3)stageFlag++;
-  }
-  else if (stageFlag == 5) 
-  {
-    DistanceControlWithYaw(1200, 1, Task1TargetYaw(-90.0f));
+    DistanceControlWithYaw(950, 1, Task1TargetYaw(0.0f));
     if(encoderFlag == 3)
     { 
-      stageFlag = 6; 
+      /**************识别是完成 串口发送2**************/
+      stageFlag++; 
       stop();
     } 
   }
+  else if (stageFlag == 5) 
+  {
+    Right_Turn(90);
+    if (turnCompleted == 3)stageFlag++;
+  }
    else if (stageFlag == 6) 
+  {
+    DistanceControlWithYaw(700, 1, Task1TargetYaw(-90.0f));
+    if (encoderFlag == 4) {
+      stageFlag++;
+      stop();
+    }
+  }
+   else if (stageFlag == 7) 
   {
     Right_Turn(90);
     if (turnCompleted == 4)stageFlag++;
   }
-   else if (stageFlag == 7) 
+  else if(stageFlag==8)
   {
-    DistanceControlWithYaw(350, 1, Task1TargetYaw(-180.0f));
-    if(encoderFlag == 4)
-    { 
-      stageFlag = 8; 
+    DistanceControlWithYaw(300, 1, Task1TargetYaw(-180.0f));
+    if(encoderFlag == 5)
+    {
+      /**************已到达打靶位置 串口发送3 串口开始打靶**************/
+      stageFlag++; 
       stop();
     } 
   }
-  else 
+  else
   {
   ;
   }
 }
 
-//控制平衡 只有直立环
 void assignment2(void) 
 {
 
 }
 
-//控制平衡 直立环+位置环
 void assignment3(void)
 {
-    // balance();
 
-    // // 发送AI调参数据（使用DMA非阻塞发送）
-    // // 只在维持平衡阶段发送数据，避免起振阶段的干扰
-    // extern Mode BalanceMode;
-    // if (BalanceMode == maintain) {
-    //     extern float angle;
-    //     extern int balancePWM;
-    //     AISending(angle, balancePWM);
-    // }
 }
 void assignment4(void) 
 {

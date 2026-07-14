@@ -201,7 +201,6 @@ void Tracking(void) {
     if(TrkI2C_x[9]) Tracking_Sum -= 40;
     if(TrkI2C_x[10]) Tracking_Sum -= 80;
   }
-
   float Kp = 1.0f; // 循迹比例
   float Kd = 0.3f; // 循迹微分（抑制震荡）
   // 3. PD 控制器计算

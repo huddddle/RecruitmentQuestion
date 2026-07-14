@@ -44,15 +44,15 @@ void Left_Turn(float degree)
   // ========== 状态 2：执行电机转向 ==========
   if (turn_step == 2)
   {
-    if (fabsf(wit_data.yaw - Target_Dir) < 2.0f)
+    if (fabsf(wit_data.yaw - Target_Dir) < 3.0f)
     {
       turn_step = 3; // 转向完成，进入停止状态
     }
     else
     {
       // 转向没有完成，继续控制电机
-      Left_Control(0, 110);  // 左轮正转
-      Right_Control(1, 110); // 右轮反转
+      Left_Control(0, 120);  
+      Right_Control(1, 80); 
     }
     return; // 继续转向
   }
@@ -105,15 +105,15 @@ void Right_Turn(float degree)
   // ========== 状态 2：执行电机转向 ==========
   if (turn_step == 2)
   {
-    if (fabsf(wit_data.yaw - Target_Dir) < 2.0f)
+    if (fabsf(wit_data.yaw - Target_Dir) < 3.0f)
     {
       turn_step = 3; // 转向完成，进入停止状态
     }
     else
     {
       // 转向没有完成，继续控制电机
-      Left_Control(1, 110);  // 左轮正转
-      Right_Control(0, 110); // 右轮反转
+      Left_Control(1, 80);  // 左轮正转
+      Right_Control(0, 120); // 右轮反转
     }
     return;
   }

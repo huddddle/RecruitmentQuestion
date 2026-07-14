@@ -20,6 +20,7 @@ extern Loc_PID DistPID_R;
 // 初始化声明
 void Speed_Init(void);
 void Reset_PID(Loc_PID *pid);
+static int32_t AbsInt32(int32_t value);
 // ====== 控制接口声明 ======
 // 速度控制：传入参数为每周期左右桥期望的脉冲跳变值
 void SpeedControl(int target_speed_L, int target_speed_R,int dir);
