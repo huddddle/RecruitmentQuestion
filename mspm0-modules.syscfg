@@ -1,8 +1,8 @@
 /**
  * These arguments were used when this file was generated. They will be automatically applied on subsequent loads
  * via the GUI or CLI. Run CLI with '--help' for additional information on how to override these arguments.
- * @cliArgs --device "MSPM0G350X" --part "Default" --package "LQFP-64(PM)" --product "mspm0_sdk@2.05.00.05"
- * @v2CliArgs --device "MSPM0G3507" --package "LQFP-64(PM)" --product "mspm0_sdk@2.05.00.05"
+ * @cliArgs --device "MSPM0G350X" --part "Default" --package "LQFP-64(PM)" --product "mspm0_sdk@2.04.00.06"
+ * @v2CliArgs --device "MSPM0G3507" --package "LQFP-64(PM)" --product "mspm0_sdk@2.04.00.06"
  * @versions {"tool":"1.24.0+4110"}
  */
 
@@ -302,6 +302,8 @@ UART1.DMA_CHANNEL_RX.dstLength         = "BYTE";
 UART1.DMA_CHANNEL_RX.srcLength         = "BYTE";
 
 UART2.$name                            = "UART_BT";
+UART2.peripheral.rxPin.$assign         = "PA9";
+UART2.peripheral.txPin.$assign         = "PA8";
 UART2.txPinConfig.direction            = scripting.forceWrite("OUTPUT");
 UART2.txPinConfig.hideOutputInversion  = scripting.forceWrite(false);
 UART2.txPinConfig.onlyInternalResistor = scripting.forceWrite(false);
@@ -312,26 +314,39 @@ UART2.rxPinConfig.onlyInternalResistor = scripting.forceWrite(false);
 UART2.rxPinConfig.passedPeripheralType = scripting.forceWrite("Digital");
 UART2.rxPinConfig.$name                = "ti_driverlib_gpio_GPIOPinGeneric4";
 
-UART3.enabledDMARXTriggers              = "DL_UART_DMA_INTERRUPT_RX";
-UART3.targetBaudRate                    = 115200;
-UART3.$name                             = "UART_Gimbal";
-UART3.enabledInterrupts                 = ["RX"];
-UART3.peripheral.$assign                = "UART1";
-UART3.peripheral.rxPin.$assign          = "PA9";
-UART3.peripheral.txPin.$assign          = "PA8";
-UART3.txPinConfig.direction             = scripting.forceWrite("OUTPUT");
-UART3.txPinConfig.hideOutputInversion   = scripting.forceWrite(false);
-UART3.txPinConfig.onlyInternalResistor  = scripting.forceWrite(false);
-UART3.txPinConfig.passedPeripheralType  = scripting.forceWrite("Digital");
-UART3.txPinConfig.$name                 = "ti_driverlib_gpio_GPIOPinGeneric10";
-UART3.rxPinConfig.hideOutputInversion   = scripting.forceWrite(false);
-UART3.rxPinConfig.onlyInternalResistor  = scripting.forceWrite(false);
-UART3.rxPinConfig.passedPeripheralType  = scripting.forceWrite("Digital");
-UART3.rxPinConfig.$name                 = "ti_driverlib_gpio_GPIOPinGeneric11";
-UART3.DMA_CHANNEL_RX.$name              = "DMA_CH0";
-UART3.DMA_CHANNEL_RX.srcLength          = "BYTE";
-UART3.DMA_CHANNEL_RX.dstLength          = "BYTE";
-UART3.DMA_CHANNEL_RX.peripheral.$assign = "DMA_CH0";
+UART3.targetBaudRate                       = 115200;
+UART3.$name                                = "UART_0";
+UART3.enableFIFO                           = true;
+UART3.txFifoThreshold                      = "DL_UART_TX_FIFO_LEVEL_1_4_EMPTY";
+UART3.rxFifoThreshold                      = "DL_UART_RX_FIFO_LEVEL_ONE_ENTRY";
+UART3.enabledInterrupts                    = ["DMA_DONE_RX","DMA_DONE_TX","EOT_DONE"];
+UART3.enabledDMATXTriggers                 = "DL_UART_DMA_INTERRUPT_TX";
+UART3.enabledDMARXTriggers                 = "DL_UART_DMA_INTERRUPT_RX";
+UART3.peripheral.rxPin.$assign             = "PA25";
+UART3.peripheral.txPin.$assign             = "PA26";
+UART3.txPinConfig.direction                = scripting.forceWrite("OUTPUT");
+UART3.txPinConfig.hideOutputInversion      = scripting.forceWrite(false);
+UART3.txPinConfig.onlyInternalResistor     = scripting.forceWrite(false);
+UART3.txPinConfig.passedPeripheralType     = scripting.forceWrite("Digital");
+UART3.txPinConfig.$name                    = "ti_driverlib_gpio_GPIOPinGeneric10";
+UART3.rxPinConfig.hideOutputInversion      = scripting.forceWrite(false);
+UART3.rxPinConfig.onlyInternalResistor     = scripting.forceWrite(false);
+UART3.rxPinConfig.passedPeripheralType     = scripting.forceWrite("Digital");
+UART3.rxPinConfig.$name                    = "ti_driverlib_gpio_GPIOPinGeneric11";
+UART3.DMA_CHANNEL_RX.srcLength             = "BYTE";
+UART3.DMA_CHANNEL_RX.dstLength             = "BYTE";
+UART3.DMA_CHANNEL_RX.configureTransferSize = true;
+UART3.DMA_CHANNEL_RX.transferSize          = 12;
+UART3.DMA_CHANNEL_RX.addressMode           = "f2b";
+UART3.DMA_CHANNEL_RX.enableInterrupt       = true;
+UART3.DMA_CHANNEL_RX.$name                 = "DMA_CH0";
+UART3.DMA_CHANNEL_RX.peripheral.$assign    = "DMA_CH0";
+UART3.DMA_CHANNEL_TX.$name                 = "DMA_CH1";
+UART3.DMA_CHANNEL_TX.addressMode           = "b2f";
+UART3.DMA_CHANNEL_TX.srcLength             = "BYTE";
+UART3.DMA_CHANNEL_TX.dstLength             = "BYTE";
+UART3.DMA_CHANNEL_TX.configureTransferSize = true;
+UART3.DMA_CHANNEL_TX.transferSize          = 12;
 
 UART4.$name                            = "UART_test";
 UART4.txPinConfig.direction            = scripting.forceWrite("OUTPUT");
@@ -377,10 +392,10 @@ PWM3.peripheral.$suggestSolution                 = "TIMG8";
 TIMER1.peripheral.$suggestSolution               = "TIMG0";
 TIMER2.peripheral.$suggestSolution               = "TIMA0";
 UART1.peripheral.$suggestSolution                = "UART0";
-UART1.DMA_CHANNEL_RX.peripheral.$suggestSolution = "DMA_CH1";
-UART2.peripheral.$suggestSolution                = "UART3";
-UART2.peripheral.rxPin.$suggestSolution          = "PA13";
-UART2.peripheral.txPin.$suggestSolution          = "PA26";
+UART1.DMA_CHANNEL_RX.peripheral.$suggestSolution = "DMA_CH2";
+UART2.peripheral.$suggestSolution                = "UART1";
+UART3.peripheral.$suggestSolution                = "UART3";
+UART3.DMA_CHANNEL_TX.peripheral.$suggestSolution = "DMA_CH1";
 UART4.peripheral.$suggestSolution                = "UART2";
 UART4.peripheral.rxPin.$suggestSolution          = "PA22";
 UART4.peripheral.txPin.$suggestSolution          = "PA21";

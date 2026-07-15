@@ -53,6 +53,7 @@
                                     <listOptionValue value="${PROJECT_ROOT}/UART"/>
                                     <listOptionValue value="${PROJECT_ROOT}/SERVO"/>
                                     <listOptionValue value="${PROJECT_ROOT}/SPEED"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Drivers/Hostcom"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/ClaudeCode"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/WIT"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Drivers/Irtracking"/>

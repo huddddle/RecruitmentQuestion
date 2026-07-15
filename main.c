@@ -48,6 +48,7 @@
 #include "wit.h"
 #include "trackingiic.h"
 #include "adc_angle.h"
+#include "hostcom.h"
 
 //  ryx test
 uint8_t oled_buffer[64];
@@ -70,9 +71,6 @@ int main(void)
   OLED_Init(); 
   WIT_Init();
 
-  // 和AI通信的串口进行初始化
-  NVIC_ClearPendingIRQ(UART_Gimbal_INST_INT_IRQN);
-  NVIC_EnableIRQ(UART_Gimbal_INST_INT_IRQN);
 
   // Servo_Init();
   NVIC_EnableIRQ(TIMER_SwingUp_INST_INT_IRQN);   //开启角度采集中断 
@@ -83,14 +81,16 @@ int main(void)
 
   AssignmentChoose();
 
-  OLED_ShowString(0, 0, (uint8_t *)"Figure:", 8);
+  OLED_ShowString(0, 0, (uint8_t *)"Rx:", 8);
   OLED_ShowString(0, 2, (uint8_t *)"Stage:", 8);
   OLED_ShowString(0, 4, (uint8_t *)"AssiFlag:", 8);
   OLED_ShowString(0, 6, (uint8_t *)"SenNumber:", 8);
 
   ADC_Angle_Init();
 
-  while (1) 
+  Host_Receive_Start();                          // 开启后台 DMA 接收（只需一次）
+
+  while (1)
   {
     trackSensorUpdate();
 
@@ -106,24 +106,17 @@ int main(void)
     // trackSensorOledShow();
     assignment_function[assignmentFlag]();
     //   DistanceControl(650, 1);
+    Host_Send('2', "+12000", '6');
 
+    /* 非阻塞检查上位机数据；收到有效帧才刷新 OLED (行首 "Rx:" 之后) */
+    if (Host_Receive_Process())
+    {
+      sprintf((char *)oled_buffer, "%c %d %c    ",
+              g_Host_Var1, g_Host_Var2, g_Host_Var3);
+      OLED_ShowString(3 * 8, 0, oled_buffer, 8);
+    }
+    // mspm0_delay_ms(100);
     // Left_Control(1, 550);
     // Right_Control(1, 550);
-  }
-}
-
-char getdata;
-void UART_Gimbal_INST_IRQHandler(void)
-{
- switch (DL_UART_Main_getPendingInterrupt(UART_Gimbal_INST)) {
-  case DL_UART_MAIN_IIDX_RX: // 修复 1：加上了冒号，去掉了多余括号
-    // 修复 2：修正了接收函数的名称
-    getdata = DL_UART_Main_receiveData(UART_Gimbal_INST);
-    DL_GPIO_togglePins(LED_PORT,LED_USER_LED_PIN);
-    // 这里写你的数据处理逻辑...
-    break;
-
-  default: // 修复 3：添加 default 分支兜底，消除 18 个未处理枚举的警告
-    break;
   }
 }
