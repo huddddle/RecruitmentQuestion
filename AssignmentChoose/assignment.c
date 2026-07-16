@@ -16,6 +16,7 @@
 #include "trackingiic.h"
 #include "move.h"
 #include "ai_sending.h"
+#include "hostcom.h"
 
 //github test13241234
 static SoftTimer_t Assitimer = {0, false};
@@ -127,7 +128,7 @@ void assignment1(void)
     DistanceControlWithYaw(200, 0, Task1TargetYaw(0.0f));
     if(encoderFlag == 2)
     { 
-          /**************倒车完成 串口发送1 表示开始识别**************/
+      Host_Send('0', "+12000", '6');
       stageFlag++; 
       stop();
     } 
@@ -137,7 +138,7 @@ void assignment1(void)
     DistanceControlWithYaw(950, 1, Task1TargetYaw(0.0f));
     if(encoderFlag == 3)
     { 
-      /**************识别是完成 串口发送2**************/
+      Host_Send('1', "+12000", '6');
       stageFlag++; 
       stop();
     } 
@@ -165,7 +166,7 @@ void assignment1(void)
     DistanceControlWithYaw(300, 1, Task1TargetYaw(-180.0f));
     if(encoderFlag == 5)
     {
-      /**************已到达打靶位置 串口发送3 串口开始打靶**************/
+      Host_Send('1', "+12000", '6');
       stageFlag++; 
       stop();
     } 
