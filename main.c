@@ -96,27 +96,21 @@ int main(void)
 
     sprintf((char *)oled_buffer, "%d", stageFlag);
     OLED_ShowString(7 * 8, 2, oled_buffer, 16);
-
     sprintf((char *)oled_buffer, "%d", assignmentFlag);
     OLED_ShowString(9 * 8, 4, oled_buffer, 16);
-
     sprintf((char *)oled_buffer, "%d", TrkI2C_IrSensorNumber);
     OLED_ShowString(9 * 8, 6, oled_buffer, 16);
 
-    // trackSensorOledShow();
     assignment_function[assignmentFlag]();
-    //   DistanceControl(650, 1);
 
 
     /* 非阻塞检查上位机数据；收到有效帧才刷新 OLED (行首 "Rx:" 之后) */
-    // if (Host_Receive_Process())
-    // {
-    //   sprintf((char *)oled_buffer, "%c %d %c    ",
-    //           g_Host_Var1, g_Host_Var2, g_Host_Var3);
-    //   OLED_ShowString(3 * 8, 0, oled_buffer, 8);
-    // }
-    // mspm0_delay_ms(100);
-    // Left_Control(1, 550);
-    // Right_Control(1, 550);
+    if (Host_Receive_Process())
+    {
+      // sprintf((char *)oled_buffer, "%c %d %c    ",
+      //         g_Host_Var1, g_Host_Var2, g_Host_Var3);
+      // OLED_ShowString(3 * 8, 0, oled_buffer, 8);
+      
+    }
   }
 }

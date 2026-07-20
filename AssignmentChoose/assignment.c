@@ -81,6 +81,8 @@ void AssignmentChoose(void)
 
   OLED_Clear();
   LightAndSound();
+  /************告知云台当前执行哪一个任务*********** */
+  Host_Send((char)('a'+assignmentFlag-1), "000000", '0');
   return;
 }
 
@@ -107,87 +109,7 @@ void TaskYawInitialization(void)
 
 void assignment1(void)
 {
-  TaskYawInitialization();
 
-  switch (stageFlag)
-  {
-    case 0:
-      if (turnCompleted == 0)
-      {
-        Left_Turn(90);
-      }
-      if (turnCompleted == 1) stageFlag++;
-      break;
-
-    case 1:
-      DistanceControlWithYaw(560, 1, Task1TargetYaw(90.0f));
-      if (encoderFlag == 1)
-      {
-        stageFlag = 2;
-        stop();
-      }
-      break;
-
-    case 2:
-      Right_Turn(90);
-      if (turnCompleted == 2) stageFlag++;
-      break;
-
-    case 3:
-      DistanceControlWithYaw(200, 0, Task1TargetYaw(0.0f));
-      if (encoderFlag == 2)
-      {
-        Host_Send('0', "000000", '0');
-        stageFlag++;
-        stop();
-      }
-      break;
-
-    case 4:
-      DistanceControlWithYaw(980, 1, Task1TargetYaw(0.0f));
-      if (encoderFlag == 3)
-      {
-        Host_Send('1', "000000", '0');
-        stageFlag++;
-        stop();
-      }
-      break;
-
-    case 5:
-      Right_Turn(90);
-      if (turnCompleted == 3) stageFlag++;
-      break;
-
-    case 6:
-      DistanceControlWithYaw(760, 1, Task1TargetYaw(-90.0f));
-      if (encoderFlag == 4)
-      {
-        stageFlag++;
-        stop();
-      }
-      break;
-
-    case 7:
-      Right_Turn(90);
-      if (turnCompleted == 4) stageFlag++;
-      break;
-
-    case 8:
-      DistanceControlWithYaw(280, 1, Task1TargetYaw(-180.0f));
-      if (encoderFlag == 5)
-      {
-        Host_Send('2', "000000", '0');
-        stageFlag++;
-        stop();
-      }
-      break;
-
-    default:
-      break;
-  }
-}
-
-void assignment2(void) {
   TaskYawInitialization();
 
   switch (stageFlag) {
@@ -229,10 +151,110 @@ void assignment2(void) {
     break;
 
   case 5:
-    DistanceControlWithYaw(570, 1, Task1TargetYaw(-180.0f));
-    if (encoderFlag == 4) {
+    if (g_Host_Var1 != '2') 
+    {
+      stop();
+    } 
+    else 
+    {
+      DistanceControlWithYaw(570, 1, Task1TargetYaw(-180.0f));
+      if (encoderFlag == 4) 
+      {
+        stageFlag++;
+        stop();
+      }
+    }
+    break;
+
+  case 6:
+    Right_Turn(90);
+    if (turnCompleted == 3)
+      stageFlag++;
+    break;
+
+  case 7:
+    DistanceControlWithYaw(650, 1, Task1TargetYaw(90.0f));
+    if (encoderFlag == 5) {
       stageFlag++;
       stop();
+    }
+    break;
+
+  case 8:
+    Right_Turn(90);
+    if (turnCompleted == 4)
+      Host_Send('1', "000000", '0');
+      stageFlag++;
+    break;
+  case 9:
+    DistanceControlWithYaw(830, 1, Task1TargetYaw(0.0f));
+    if (encoderFlag == 6) {
+      stageFlag++;
+      stop();
+    }
+    break;
+
+  default:
+    break;
+  }
+}
+
+void assignment2(void) 
+{
+
+  TaskYawInitialization();
+
+  switch (stageFlag) {
+  case 0:
+    DistanceControlWithYaw(850, 1, Task1TargetYaw(0.0f));
+    if (encoderFlag == 1) {
+      stageFlag = 1;
+      stop();
+    }
+    break;
+
+  case 1:
+    Right_Turn(90);
+    if (turnCompleted == 1)
+      stageFlag++;
+    break;
+
+  case 2:
+    DistanceControlWithYaw(140, 1, Task1TargetYaw(-90.0f));
+    if (encoderFlag == 2) {
+      stageFlag++;
+      stop();
+    }
+    break;
+
+  case 3:
+    Right_Turn(90);
+    if (turnCompleted == 2)
+      stageFlag++;
+    break;
+
+  case 4:
+    DistanceControlWithYaw(380, 1, Task1TargetYaw(-180.0f));
+    if (encoderFlag == 3) {
+      Host_Send('0', "000000", '0');
+      stageFlag++;
+      stop();
+    }
+    break;
+
+  case 5:
+    if (g_Host_Var1 != '2') 
+    {
+      stop();
+    } 
+    else 
+    {
+      DistanceControlWithYaw(570, 1, Task1TargetYaw(-180.0f));
+      if (encoderFlag == 4) 
+      {
+        stageFlag++;
+        stop();
+      }
     }
     break;
 
@@ -271,11 +293,159 @@ void assignment2(void) {
 
 void assignment3(void)
 {
+  TaskYawInitialization();
 
+  switch (stageFlag) {
+  case 0:
+    if (turnCompleted == 0) {
+      Left_Turn(90);
+    }
+    if (turnCompleted == 1)
+      stageFlag++;
+    break;
+
+  case 1:
+    DistanceControlWithYaw(560, 1, Task1TargetYaw(90.0f));
+    if (encoderFlag == 1) {
+      stageFlag = 2;
+      stop();
+    }
+    break;
+
+  case 2:
+    Right_Turn(90);
+    if (turnCompleted == 2)
+      stageFlag++;
+    break;
+
+  case 3:
+    DistanceControlWithYaw(200, 0, Task1TargetYaw(0.0f));
+    if (encoderFlag == 2) {
+      Host_Send('0', "000000", '0');
+      stageFlag++;
+      stop();
+    }
+    break;
+
+  case 4:
+    DistanceControlWithYaw(980, 1, Task1TargetYaw(0.0f));
+    if (encoderFlag == 3) {
+      Host_Send('1', "000000", '0');
+      stageFlag++;
+      stop();
+    }
+    break;
+
+  case 5:
+    Right_Turn(90);
+    if (turnCompleted == 3)
+      stageFlag++;
+    break;
+
+  case 6:
+    DistanceControlWithYaw(760, 1, Task1TargetYaw(-90.0f));
+    if (encoderFlag == 4) {
+      stageFlag++;
+      stop();
+    }
+    break;
+
+  case 7:
+    Right_Turn(90);
+    if (turnCompleted == 4)
+      stageFlag++;
+    break;
+
+  case 8:
+    DistanceControlWithYaw(280, 1, Task1TargetYaw(-180.0f));
+    if (encoderFlag == 5) {
+      Host_Send('2', "000000", '0');
+      stageFlag++;
+      stop();
+    }
+    break;
+
+  default:
+    break;
+  }
 }
 void assignment4(void) 
 {
+  TaskYawInitialization();
 
+  switch (stageFlag) {
+  case 0:
+    if (turnCompleted == 0) {
+      Left_Turn(90);
+    }
+    if (turnCompleted == 1)
+      stageFlag++;
+    break;
+
+  case 1:
+    DistanceControlWithYaw(560, 1, Task1TargetYaw(90.0f));
+    if (encoderFlag == 1) {
+      stageFlag = 2;
+      stop();
+    }
+    break;
+
+  case 2:
+    Right_Turn(90);
+    if (turnCompleted == 2)
+      stageFlag++;
+    break;
+
+  case 3:
+    DistanceControlWithYaw(200, 0, Task1TargetYaw(0.0f));
+    if (encoderFlag == 2) {
+      Host_Send('0', "000000", '0');
+      stageFlag++;
+      stop();
+    }
+    break;
+
+  case 4:
+    DistanceControlWithYaw(980, 1, Task1TargetYaw(0.0f));
+    if (encoderFlag == 3) {
+      Host_Send('1', "000000", '0');
+      stageFlag++;
+      stop();
+    }
+    break;
+
+  case 5:
+    Right_Turn(90);
+    if (turnCompleted == 3)
+      stageFlag++;
+    break;
+
+  case 6:
+    DistanceControlWithYaw(760, 1, Task1TargetYaw(-90.0f));
+    if (encoderFlag == 4) {
+      stageFlag++;
+      stop();
+    }
+    break;
+
+  case 7:
+    Right_Turn(90);
+    if (turnCompleted == 4)
+      stageFlag++;
+    break;
+
+  case 8:
+    DistanceControlWithYaw(280, 1, Task1TargetYaw(-180.0f));
+    if (encoderFlag == 5) {
+      Host_Send('2', "000000", '0');
+      stageFlag++;
+      stop();
+    }
+    break;
+
+  default:
+    break;
+  }
 }
 
 void assignment5(void) 

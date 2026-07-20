@@ -161,8 +161,8 @@ int DistanceControlWithYaw(int target_distance, int dir, float target_yaw)
 //为了迎合招新题 放弃使用基本距离的速度pid计算
     // int target_speed_L = base_speed + yaw_correction;
     // int target_speed_R = base_speed - yaw_correction;
-    int target_speed_L = 120 + yaw_correction;
-    int target_speed_R = 120 - yaw_correction;
+    int target_speed_L = 100 + yaw_correction;
+    int target_speed_R = 100 - yaw_correction;
 
     target_speed_L = LimitInt(target_speed_L, 0, DISTANCE_SPEED_LIMIT);
     target_speed_R = LimitInt(target_speed_R, 0, DISTANCE_SPEED_LIMIT);
