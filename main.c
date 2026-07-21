@@ -53,15 +53,9 @@
 //  ryx test
 uint8_t oled_buffer[64];
 volatile uint8_t gEchoData = 0;
-void (*assignment_function[8])(void)=
-{
-  assignment0, 
-  assignment1, 
-  assignment2, 
-  assignment3, 
-  assignment4, 
-  assignment5, 
-};
+void (*assignment_function[8])(void) = {assignment0, assignment1, assignment2,
+                                        assignment3, assignment4, assignment5,
+                                        assignment6, assignment7};
 
 int main(void) 
  {
@@ -102,15 +96,14 @@ int main(void)
     OLED_ShowString(9 * 8, 6, oled_buffer, 16);
 
     assignment_function[assignmentFlag]();
-
-
     /* 非阻塞检查上位机数据；收到有效帧才刷新 OLED (行首 "Rx:" 之后) */
-    if (Host_Receive_Process())
-    {
-      // sprintf((char *)oled_buffer, "%c %d %c    ",
-      //         g_Host_Var1, g_Host_Var2, g_Host_Var3);
-      // OLED_ShowString(3 * 8, 0, oled_buffer, 8);
-      
-    }
+  //   if (Host_Receive_Process())
+  //   {
+  //   // if (g_Host_Var1 != '4') 
+  //   // {
+  //   //   stop();
+  //   //   assignmentFlag=0;
+  //   // } 
+  //   }
   }
 }

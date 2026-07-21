@@ -15,8 +15,8 @@ static int Delta_PWM_R = 0;
 
 // 初始化距离(位置)PID 的参数（Kp, Ki, Kd,...）
 // 这里给出一组示例初值，调试时请根据小车质量和电机功率修改！一般位置环只需 P 计算即可较好运行
-Loc_PID DistPID_L = {4.0, 0.0, 0.2, 0, 0, 0};
-Loc_PID DistPID_R = {4.0, 0.0, 0.2, 0, 0, 0};
+Loc_PID DistPID_L = {3.0, 0.0, 0.2, 0, 0, 0};
+Loc_PID DistPID_R = {3.0, 0.0, 0.2, 0, 0, 0};
 
 // 初始化定时器
 void Speed_Init(void)
@@ -65,8 +65,9 @@ static int32_t  startEncoder_L=0;
 static int32_t  startEncoder_R=0;
 int8_t encoderFlag=0;
 #define DISTANCE_CONTROL_PERIOD_MS 10
-#define YAW_CORRECTION_KP 4.0f
-#define YAW_CORRECTION_LIMIT 80
+#define YAW_CORRECTION_KP 5.0f
+#define YAW_CORRECTION_KD 0.0f
+#define YAW_CORRECTION_LIMIT 240
 #define DISTANCE_SPEED_LIMIT 250
 
 static float NormalizeYawError(float error)
@@ -88,9 +89,10 @@ static int LimitInt(int value, int minValue, int maxValue)
 }
 
 
-int DistanceControlWithYaw(int target_distance, int dir, float target_yaw)
+int DistanceControlWithYaw(int target_distance, int dir, float target_yaw, int basic_speed, bool Distance_pid)
 {
     static float startYaw = 0.0f;
+    static float last_yaw_bias = 0.0f;
 
     if (!speedControlTick) {
         return 0;
@@ -107,6 +109,7 @@ int DistanceControlWithYaw(int target_distance, int dir, float target_yaw)
         __enable_irq();
 
         startYaw = target_yaw;
+        last_yaw_bias = NormalizeYawError(wit_data.yaw - startYaw);
         Reset_PID(&DistPID_L);
         Reset_PID(&DistPID_R);
     }
@@ -131,25 +134,34 @@ int DistanceControlWithYaw(int target_distance, int dir, float target_yaw)
         AbsoluateEncoder = 0;
         startEncoder_L = 0;
         startEncoder_R = 0;
+        last_yaw_bias = 0.0f;
         Reset_PID(&DistPID_L);
         Reset_PID(&DistPID_R);
         encoderFlag++;
         return 1;
     }
 
-    DistPID_L.Error = AbsoluateEncoder - avg_travel;
-    DistPID_L.Integral += DistPID_L.Error;
-    DistPID_L.Integral = LimitInt(DistPID_L.Integral, -3000, 3000);
+    int distance_pid_speed = 0;
 
-    int base_speed = (int)(DistPID_L.Kp * DistPID_L.Error +
-                           DistPID_L.Ki * DistPID_L.Integral +
-                           DistPID_L.Kd * (DistPID_L.Error - DistPID_L.Last_Error));
-    DistPID_L.Last_Error = DistPID_L.Error;
+    if (Distance_pid) {
+        DistPID_L.Error = AbsoluateEncoder - avg_travel;
+        DistPID_L.Integral += DistPID_L.Error;
+        DistPID_L.Integral = LimitInt(DistPID_L.Integral, -3000, 3000);
 
-    base_speed = LimitInt(base_speed, 0, DISTANCE_SPEED_LIMIT);
+        distance_pid_speed = (int)(DistPID_L.Kp * DistPID_L.Error +
+                                   DistPID_L.Ki * DistPID_L.Integral +
+                                   DistPID_L.Kd * (DistPID_L.Error - DistPID_L.Last_Error));
+        DistPID_L.Last_Error = DistPID_L.Error;
 
-    float yaw_error = NormalizeYawError(wit_data.yaw - startYaw);
-    int yaw_correction = (int)(YAW_CORRECTION_KP * yaw_error);
+        distance_pid_speed = LimitInt(distance_pid_speed, 0, DISTANCE_SPEED_LIMIT);
+    }
+
+    float yaw_bias = NormalizeYawError(wit_data.yaw - startYaw);
+    float yaw_error = NormalizeYawError(yaw_bias - last_yaw_bias);
+    last_yaw_bias = yaw_bias;
+
+    int yaw_correction = (int)(YAW_CORRECTION_KP * yaw_bias +
+                               YAW_CORRECTION_KD * yaw_error);
     yaw_correction = LimitInt(yaw_correction,
                               -YAW_CORRECTION_LIMIT,
                               YAW_CORRECTION_LIMIT);
@@ -158,11 +170,15 @@ int DistanceControlWithYaw(int target_distance, int dir, float target_yaw)
         yaw_correction = -yaw_correction;
     }
 
-//为了迎合招新题 放弃使用基本距离的速度pid计算
-    // int target_speed_L = base_speed + yaw_correction;
-    // int target_speed_R = base_speed - yaw_correction;
-    int target_speed_L = 100 + yaw_correction;
-    int target_speed_R = 100 - yaw_correction;
+    basic_speed = LimitInt(basic_speed, 0, DISTANCE_SPEED_LIMIT);
+
+    int forward_speed = basic_speed;
+    if (Distance_pid) {
+        forward_speed += distance_pid_speed;
+    }
+
+    int target_speed_L = forward_speed + yaw_correction;
+    int target_speed_R = forward_speed - yaw_correction;
 
     target_speed_L = LimitInt(target_speed_L, 0, DISTANCE_SPEED_LIMIT);
     target_speed_R = LimitInt(target_speed_R, 0, DISTANCE_SPEED_LIMIT);
@@ -174,7 +190,7 @@ int DistanceControlWithYaw(int target_distance, int dir, float target_yaw)
 
 int DistanceControl(int target_distance, int dir)
 {
-    return DistanceControlWithYaw(target_distance, dir, wit_data.yaw);
+    return DistanceControlWithYaw(target_distance, dir, wit_data.yaw, 100, true);
 }
 
 void Reset_PID(Loc_PID *pid) {

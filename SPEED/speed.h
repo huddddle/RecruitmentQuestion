@@ -28,6 +28,6 @@ void SpeedControl(int target_speed_L, int target_speed_R,int dir);
 // 距离控制：传入参数为左右轮期望到达的绝对总脉冲位置
 extern volatile int32_t AbsoluateEncoder; 
 int DistanceControl(int target_distance,int dir);
-int DistanceControlWithYaw(int target_distance, int dir, float target_yaw);
+int DistanceControlWithYaw(int target_distance, int dir, float target_yaw, int basic_speed, bool Distance_pid);
 
 #endif
