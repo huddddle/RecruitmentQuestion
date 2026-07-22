@@ -49,6 +49,17 @@
 #include "trackingiic.h"
 #include "adc_angle.h"
 #include "hostcom.h"
+#include "drive_board.h"
+
+/* ================= 串口电机驱动板演示参数 =================
+ * 旧 TB6612 驱动仍使用 Left_Control()/Right_Control()；
+ * 新驱动板只使用 DriveBoard_*()，两套接口互不冲突。
+ */
+#define DRIVE_BOARD_DEMO_ENABLE       (1U)
+#define DRIVE_BOARD_DEMO_MIN_SPEED    (10)
+#define DRIVE_BOARD_DEMO_MAX_SPEED    (50)
+#define DRIVE_BOARD_DEMO_SPEED_STEP   (5)
+#define DRIVE_BOARD_DEMO_STEP_TIME_MS (200U)
 
 //  ryx test
 uint8_t oled_buffer[64];
@@ -59,8 +70,14 @@ void (*assignment_function[8])(void) = {assignment0, assignment1, assignment2,
 
 int main(void) 
  {
+  int16_t driveBoardSpeed = DRIVE_BOARD_DEMO_MIN_SPEED;
+  bool driveBoardAccelerating = true;
+  uint32_t driveBoardNextUpdateMs = 0U;
+  int16_t driveBoardEncoderCounts[DRIVE_BOARD_ENCODER_COUNT] = {0};
+
   SYSCFG_DL_init();
   SysTick_Init();
+  DriveBoard_Init();
 
   OLED_Init(); 
   WIT_Init();
@@ -84,8 +101,62 @@ int main(void)
 
   Host_Receive_Start();                          // 开启后台 DMA 接收（只需一次）
 
+#if DRIVE_BOARD_DEMO_ENABLE
+  /* DriveBoard_Init() 已根据 drive_board.c 顶部配置完成模式和 PID 设置。
+   * 如某一路编码器方向相反，再单独启用；不要默认全部取反。
+   */
+  // (void)DriveBoard_SetEncoderPolarity(1U, true);
+  // (void)DriveBoard_ClearEncoders();
+
+  driveBoardNextUpdateMs = (uint32_t)tick_ms;
+#endif
+
   while (1)
   {
+    /* 必须高频调用：只做状态检查，不等待、不阻塞。 */
+    DriveBoard_Process();
+
+    /* 收到驱动板主动上报的有效 0x03 帧时，复制四路累计编码器值。 */
+    if (DriveBoard_GetEncoderCounts(driveBoardEncoderCounts))
+    {
+      /* driveBoardEncoderCounts[0..3] 可在此处参与里程/速度计算。 */
+    }
+
+#if DRIVE_BOARD_DEMO_ENABLE
+    /* ================= 四电机先加速、后减速循环示例 ================= */
+    if ((int32_t)((uint32_t)tick_ms - driveBoardNextUpdateMs) >= 0)
+    {
+      int16_t command = (int16_t)-driveBoardSpeed;
+      (void)DriveBoard_SetSpeeds(command, command, command, command);
+      driveBoardNextUpdateMs = (uint32_t)tick_ms + DRIVE_BOARD_DEMO_STEP_TIME_MS;
+
+      if (driveBoardAccelerating)
+      {
+        if (driveBoardSpeed >= DRIVE_BOARD_DEMO_MAX_SPEED)
+        {
+          driveBoardAccelerating = false;
+          driveBoardSpeed -= DRIVE_BOARD_DEMO_SPEED_STEP;
+        }
+        else
+        {
+          driveBoardSpeed += DRIVE_BOARD_DEMO_SPEED_STEP;
+        }
+      }
+      else
+      {
+        if (driveBoardSpeed <= DRIVE_BOARD_DEMO_MIN_SPEED)
+        {
+          driveBoardAccelerating = true;
+          driveBoardSpeed += DRIVE_BOARD_DEMO_SPEED_STEP;
+        }
+        else
+        {
+          driveBoardSpeed -= DRIVE_BOARD_DEMO_SPEED_STEP;
+        }
+      }
+    }
+#endif
+
     trackSensorUpdate();
 
     sprintf((char *)oled_buffer, "%d", stageFlag);
