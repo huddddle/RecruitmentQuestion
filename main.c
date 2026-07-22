@@ -82,7 +82,7 @@ int main(void)
   OLED_Init(); 
   WIT_Init();
 
-
+  Host_Receive_Start(); // 开启上位机DMA 接收
   // Servo_Init();
   NVIC_EnableIRQ(TIMER_SwingUp_INST_INT_IRQN);   //开启角度采集中断 
   Speed_Init();
@@ -99,7 +99,7 @@ int main(void)
 
   ADC_Angle_Init();
 
-  Host_Receive_Start();                          // 开启后台 DMA 接收（只需一次）
+
 
 #if DRIVE_BOARD_DEMO_ENABLE
   /* DriveBoard_Init() 已根据 drive_board.c 顶部配置完成模式和 PID 设置。
@@ -117,40 +117,30 @@ int main(void)
     DriveBoard_Process();
 
     /* 收到驱动板主动上报的有效 0x03 帧时，复制四路累计编码器值。 */
-    if (DriveBoard_GetEncoderCounts(driveBoardEncoderCounts))
-    {
+    if (DriveBoard_GetEncoderCounts(driveBoardEncoderCounts)) {
       /* driveBoardEncoderCounts[0..3] 可在此处参与里程/速度计算。 */
     }
 
 #if DRIVE_BOARD_DEMO_ENABLE
     /* ================= 四电机先加速、后减速循环示例 ================= */
-    if ((int32_t)((uint32_t)tick_ms - driveBoardNextUpdateMs) >= 0)
-    {
+    if ((int32_t)((uint32_t)tick_ms - driveBoardNextUpdateMs) >= 0) {
       int16_t command = (int16_t)-driveBoardSpeed;
       (void)DriveBoard_SetSpeeds(command, command, command, command);
-      driveBoardNextUpdateMs = (uint32_t)tick_ms + DRIVE_BOARD_DEMO_STEP_TIME_MS;
+      driveBoardNextUpdateMs =
+          (uint32_t)tick_ms + DRIVE_BOARD_DEMO_STEP_TIME_MS;
 
-      if (driveBoardAccelerating)
-      {
-        if (driveBoardSpeed >= DRIVE_BOARD_DEMO_MAX_SPEED)
-        {
+      if (driveBoardAccelerating) {
+        if (driveBoardSpeed >= DRIVE_BOARD_DEMO_MAX_SPEED) {
           driveBoardAccelerating = false;
           driveBoardSpeed -= DRIVE_BOARD_DEMO_SPEED_STEP;
-        }
-        else
-        {
+        } else {
           driveBoardSpeed += DRIVE_BOARD_DEMO_SPEED_STEP;
         }
-      }
-      else
-      {
-        if (driveBoardSpeed <= DRIVE_BOARD_DEMO_MIN_SPEED)
-        {
+      } else {
+        if (driveBoardSpeed <= DRIVE_BOARD_DEMO_MIN_SPEED) {
           driveBoardAccelerating = true;
           driveBoardSpeed += DRIVE_BOARD_DEMO_SPEED_STEP;
-        }
-        else
-        {
+        } else {
           driveBoardSpeed -= DRIVE_BOARD_DEMO_SPEED_STEP;
         }
       }
@@ -168,13 +158,12 @@ int main(void)
 
     assignment_function[assignmentFlag]();
     /* 非阻塞检查上位机数据；收到有效帧才刷新 OLED (行首 "Rx:" 之后) */
-  //   if (Host_Receive_Process())
-  //   {
-  //   // if (g_Host_Var1 != '4') 
-  //   // {
-  //   //   stop();
-  //   //   assignmentFlag=0;
-  //   // } 
-  //   }
+    if (Host_Receive_Process())
+    {
+    if (g_Host_Var1 != '4') 
+    {
+      LightAndSound();
+    } 
+    }
   }
 }

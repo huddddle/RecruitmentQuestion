@@ -1,8 +1,8 @@
 /**
  * These arguments were used when this file was generated. They will be automatically applied on subsequent loads
  * via the GUI or CLI. Run CLI with '--help' for additional information on how to override these arguments.
- * @cliArgs --device "MSPM0G350X" --part "Default" --package "LQFP-64(PM)" --product "mspm0_sdk@2.04.00.06"
- * @v2CliArgs --device "MSPM0G3507" --package "LQFP-64(PM)" --product "mspm0_sdk@2.04.00.06"
+ * @cliArgs --device "MSPM0G350X" --part "Default" --package "LQFP-64(PM)" --product "mspm0_sdk@2.05.00.05"
+ * @v2CliArgs --device "MSPM0G3507" --package "LQFP-64(PM)" --product "mspm0_sdk@2.05.00.05"
  * @versions {"tool":"1.24.0+4110"}
  */
 
@@ -318,8 +318,14 @@ UART3.targetBaudRate                       = 115200;
 UART3.$name                                = "UART_0";
 UART3.enableFIFO                           = true;
 UART3.txFifoThreshold                      = "DL_UART_TX_FIFO_LEVEL_1_4_EMPTY";
-UART3.rxFifoThreshold                      = "DL_UART_RX_FIFO_LEVEL_ONE_ENTRY";
-UART3.enabledInterrupts                    = ["DMA_DONE_RX","DMA_DONE_TX","EOT_DONE"];
+/*
+ * 半满阈值使 FIFO 保留最后 1 字节：正常帧由 11 字节 DMA + 1 字节 FIFO 组成，
+ * 短帧结束时 FIFO 中也有尾字节，因此 RX timeout 能可靠触发恢复。
+ */
+UART3.rxFifoThreshold                      = "DL_UART_RX_FIFO_LEVEL_1_2_FULL";
+/* 15 个位时间内没有下一个字节时产生 RX timeout。 */
+UART3.rxTimeoutValue                       = 15;
+UART3.enabledInterrupts                    = ["DMA_DONE_RX","DMA_DONE_TX","EOT_DONE","RX_TIMEOUT_ERROR"];
 UART3.enabledDMATXTriggers                 = "DL_UART_DMA_INTERRUPT_TX";
 UART3.enabledDMARXTriggers                 = "DL_UART_DMA_INTERRUPT_RX";
 UART3.peripheral.rxPin.$assign             = "PA25";
@@ -342,35 +348,36 @@ UART3.DMA_CHANNEL_TX.transferSize          = 12;
 UART3.DMA_CHANNEL_RX.srcLength             = "BYTE";
 UART3.DMA_CHANNEL_RX.dstLength             = "BYTE";
 UART3.DMA_CHANNEL_RX.configureTransferSize = true;
-UART3.DMA_CHANNEL_RX.transferSize          = 12;
+/* 12 字节帧的最后 1 字节留在 FIFO，由 UART 中断读取。 */
+UART3.DMA_CHANNEL_RX.transferSize          = 11;
 UART3.DMA_CHANNEL_RX.addressMode           = "f2b";
 UART3.DMA_CHANNEL_RX.enableInterrupt       = true;
 UART3.DMA_CHANNEL_RX.$name                 = "DMA_CH0";
 UART3.DMA_CHANNEL_RX.peripheral.$assign    = "DMA_CH0";
 
-UART4.$name                            = "MSPMotor";
-UART4.targetBaudRate                   = 115200;
-UART4.enableFIFO                       = true;
-UART4.rxFifoThreshold                  = "DL_UART_RX_FIFO_LEVEL_ONE_ENTRY";
-UART4.txFifoThreshold                  = "DL_UART_TX_FIFO_LEVEL_ONE_ENTRY";
-UART4.enabledInterrupts                = ["RX","EOT_DONE"];
-UART4.enabledDMATXTriggers             = "DL_UART_DMA_INTERRUPT_TX";
-UART4.peripheral.$assign               = "UART2";
-UART4.peripheral.rxPin.$assign         = "PA24";
-UART4.peripheral.txPin.$assign         = "PB17";
-UART4.txPinConfig.direction            = scripting.forceWrite("OUTPUT");
-UART4.txPinConfig.hideOutputInversion  = scripting.forceWrite(false);
-UART4.txPinConfig.onlyInternalResistor = scripting.forceWrite(false);
-UART4.txPinConfig.passedPeripheralType = scripting.forceWrite("Digital");
-UART4.txPinConfig.$name                = "ti_driverlib_gpio_GPIOPinGeneric13";
-UART4.rxPinConfig.hideOutputInversion  = scripting.forceWrite(false);
-UART4.rxPinConfig.onlyInternalResistor = scripting.forceWrite(false);
-UART4.rxPinConfig.passedPeripheralType = scripting.forceWrite("Digital");
-UART4.rxPinConfig.$name                = "ti_driverlib_gpio_GPIOPinGeneric14";
-UART4.DMA_CHANNEL_TX.$name             = "MSPMotor_TX_DMA";
-UART4.DMA_CHANNEL_TX.addressMode       = "b2f";
-UART4.DMA_CHANNEL_TX.dstLength         = "BYTE";
-UART4.DMA_CHANNEL_TX.srcLength         = "BYTE";
+UART4.$name                             = "MSPMotor";
+UART4.targetBaudRate                    = 115200;
+UART4.enableFIFO                        = true;
+UART4.rxFifoThreshold                   = "DL_UART_RX_FIFO_LEVEL_ONE_ENTRY";
+UART4.txFifoThreshold                   = "DL_UART_TX_FIFO_LEVEL_ONE_ENTRY";
+UART4.enabledInterrupts                 = ["EOT_DONE","RX"];
+UART4.enabledDMATXTriggers              = "DL_UART_DMA_INTERRUPT_TX";
+UART4.peripheral.$assign                = "UART2";
+UART4.peripheral.rxPin.$assign          = "PA24";
+UART4.peripheral.txPin.$assign          = "PB17";
+UART4.txPinConfig.direction             = scripting.forceWrite("OUTPUT");
+UART4.txPinConfig.hideOutputInversion   = scripting.forceWrite(false);
+UART4.txPinConfig.onlyInternalResistor  = scripting.forceWrite(false);
+UART4.txPinConfig.passedPeripheralType  = scripting.forceWrite("Digital");
+UART4.txPinConfig.$name                 = "ti_driverlib_gpio_GPIOPinGeneric13";
+UART4.rxPinConfig.hideOutputInversion   = scripting.forceWrite(false);
+UART4.rxPinConfig.onlyInternalResistor  = scripting.forceWrite(false);
+UART4.rxPinConfig.passedPeripheralType  = scripting.forceWrite("Digital");
+UART4.rxPinConfig.$name                 = "ti_driverlib_gpio_GPIOPinGeneric14";
+UART4.DMA_CHANNEL_TX.$name              = "MSPMotor_TX_DMA";
+UART4.DMA_CHANNEL_TX.addressMode        = "b2f";
+UART4.DMA_CHANNEL_TX.dstLength          = "BYTE";
+UART4.DMA_CHANNEL_TX.srcLength          = "BYTE";
 UART4.DMA_CHANNEL_TX.peripheral.$assign = "DMA_CH3";
 
 /**

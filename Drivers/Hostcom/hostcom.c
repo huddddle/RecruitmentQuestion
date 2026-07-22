@@ -1,11 +1,12 @@
 #include "hostcom.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* 定义在 .h 中声明的全局变量 */
-char g_Host_Var1 = '0';
-int16_t g_Host_Var2 = 0;
-char g_Host_Var3 = '0';
+volatile char g_Host_Var1 = '0';
+volatile int16_t g_Host_Var2 = 0;
+volatile char g_Host_Var3 = '0';
 
 uint8_t gTxPacket[128];
 uint8_t gRxPacket[HOST_PACKET_LEN];
@@ -13,6 +14,13 @@ uint8_t gRxPacket[HOST_PACKET_LEN];
 volatile bool gCheckUART = false;
 volatile bool gDMADone_TX = false;
 volatile bool gDMADone_RX = false;
+
+/* 可在调试器中观察这两个计数器，判断是否发生过短帧或完整错帧。 */
+volatile uint32_t gHostRxShortFrameCount = 0U;
+volatile uint32_t gHostRxInvalidFrameCount = 0U;
+
+/* 中断解析成功后置位；主循环调用 Host_Receive_Process() 后清零。 */
+volatile bool gHostFrameReady = false;
 
 /* ====================================================================
  * 内部 DMA 控制函数 (供当前文件调用)
@@ -43,6 +51,58 @@ static void Start_UART_DMA_RX(uint8_t *buffer, uint16_t length)
     DL_DMA_enableChannel(DMA, DMA_CH0_CHAN_ID);
 }
 
+/*
+ * 停止 DMA 后统计已经搬入内存的字节，再把 FIFO 中保留的尾字节补到数组。
+ * 半满阈值下，连续接收 N 个字节时通常是 DMA 搬 N-1 个、FIFO 留 1 个。
+ */
+static uint16_t Host_StopRxDmaAndCollectFifo(void)
+{
+    uint16_t received;
+
+    DL_DMA_disableChannel(DMA, DMA_CH0_CHAN_ID);
+
+    uint32_t remaining = DL_DMA_getTransferSize(DMA, DMA_CH0_CHAN_ID);
+
+    if (remaining > HOST_RX_DMA_LEN) {
+        return 0U;
+    }
+
+    received = (uint16_t)(HOST_RX_DMA_LEN - remaining);
+
+    while ((received < HOST_PACKET_LEN) &&
+           !DL_UART_Main_isRXFIFOEmpty(UART_0_INST)) {
+        gRxPacket[received++] =
+            (uint8_t)DL_UART_Main_receiveData(UART_0_INST);
+    }
+
+    return received;
+}
+
+/* 清除旧事件并重新启动 11 字节 DMA；调用前当前 DMA 必须已经停止。 */
+static void Host_RearmRxDma(void)
+{
+    while (!DL_UART_Main_isRXFIFOEmpty(UART_0_INST)) {
+        (void)DL_UART_Main_receiveData(UART_0_INST);
+    }
+
+    DL_UART_Main_clearInterruptStatus(UART_0_INST,
+        DL_UART_MAIN_INTERRUPT_DMA_DONE_RX |
+        DL_UART_MAIN_INTERRUPT_RX_TIMEOUT_ERROR);
+
+    Start_UART_DMA_RX(gRxPacket, HOST_RX_DMA_LEN);
+}
+
+/*
+ * 放弃当前这次接收，并重新准备接收一组完整的 12 字节数据。
+ * 必须先停 DMA，再清 UART FIFO，避免旧字节进入下一帧造成持续错位。
+ */
+static void Host_AbortAndRearmRxDma(void)
+{
+    DL_DMA_disableChannel(DMA, DMA_CH0_CHAN_ID);
+    memset(gRxPacket, 0, sizeof(gRxPacket));
+    Host_RearmRxDma();
+}
+
 /* ====================================================================
  * 对外提供的用户函数
  * ==================================================================== */
@@ -65,13 +125,20 @@ void Host_Send(char var1, const char* var2, char var3)
 void Host_Receive_Start(void)
 {
     /* 开启后台接收，目标收满 12 个字节 ($2,+12000,6#)。
-     * 只需在初始化时调用一次；之后每收齐一帧，Host_Receive_Process 会自动重新武装。 */
-    Start_UART_DMA_RX(gRxPacket, HOST_PACKET_LEN);
+     * 只需在初始化时调用一次；之后每收齐一帧，中断会自动重新武装 DMA。 */
+    gHostFrameReady = false;
+    memset(gRxPacket, 0, sizeof(gRxPacket));
+    DL_DMA_disableChannel(DMA, DMA_CH0_CHAN_ID);
+    Host_RearmRxDma();
 }
 
-bool Host_Receive_Process(void)
+/*
+ * 该函数只在 UART 中断内部调用：校验、解析，并尽快重新启动 DMA。
+ * 与业务层的 Host_Receive_Process() 分开，避免主循环较慢时漏掉后续字节。
+ */
+static bool Host_ParseCompletedFrame(void)
 {
-    /* 1. 非阻塞：数据还没收齐就立刻返回，绝不死等 */
+    /* DMA 完成标志尚未置位时，不读取接收缓冲区。 */
     if (!gDMADone_RX) {
         return false;
     }
@@ -82,7 +149,7 @@ bool Host_Receive_Process(void)
      */
     bool valid = false;
 
-    /* 做一下简单的校验：如果头是 '$'，尾是 '#'，说明数据是对齐的 */
+    /* 只有以 '$' 开头、以 '#' 结尾的 12 字节数据才是对齐的完整帧。 */
     if (gRxPacket[0] == '$' && gRxPacket[11] == '#') {
 
         /* 提取第一个和第三个字符变量 (直接保留 ASCII 码) */
@@ -101,18 +168,62 @@ bool Host_Receive_Process(void)
         gRxPacket[9] = ',';
 
         valid = true;
+    } else {
+        /* 收满了 12 字节，但帧头/帧尾不正确：丢弃并彻底重新对齐。 */
+        gHostRxInvalidFrameCount++;
+        Host_AbortAndRearmRxDma();
+        return false;
     }
 
-    /* 3. 重新武装 DMA，准备接收下一帧 (会把 gDMADone_RX 清零) */
-    Start_UART_DMA_RX(gRxPacket, HOST_PACKET_LEN);
+    /* 3. 重新武装 11 字节 DMA，准备接收下一帧。 */
+    Host_RearmRxDma();
 
     return valid;
+}
+
+bool Host_Receive_Process(void)
+{
+    bool ready;
+    uint32_t interruptState = __get_PRIMASK();
+
+    /*
+     * 这里只短暂关闭中断，用来安全地“读取并清除”新帧标志。
+     * 没有新帧时立即返回，不等待 DMA，也不重复解析数据。
+     */
+    __disable_irq();
+    ready = gHostFrameReady;
+    gHostFrameReady = false;
+    if (interruptState == 0U) {
+        __enable_irq();
+    }
+
+    return ready;
+}
+
+/*
+ * DMA 完成和 RX timeout 共用同一套收尾逻辑：
+ * 12 字节才校验解析；1~11 字节一律作为短帧丢弃并重新对齐。
+ */
+static void Host_HandleRxEvent(void)
+{
+    uint16_t received = Host_StopRxDmaAndCollectFifo();
+
+    if (received == HOST_PACKET_LEN) {
+        gDMADone_RX = true;
+        if (Host_ParseCompletedFrame()) {
+            gHostFrameReady = true;
+        }
+    } else {
+        if (received > 0U) {
+            gHostRxShortFrameCount++;
+        }
+        Host_AbortAndRearmRxDma();
+    }
 }
 
 /* ====================================================================
  * UART 中断服务函数
  * ==================================================================== */
-volatile bool gHostFrameReady = false;
 void UART_0_INST_IRQHandler(void)
 {
     switch (DL_UART_Main_getPendingInterrupt(UART_0_INST)) {
@@ -125,11 +236,11 @@ void UART_0_INST_IRQHandler(void)
             break;
 
         case DL_UART_MAIN_IIDX_DMA_DONE_RX:
-            gDMADone_RX = true;
+            Host_HandleRxEvent();
+            break;
 
-            if (Host_Receive_Process()) {
-                gHostFrameReady = true;
-            }
+        case DL_UART_MAIN_IIDX_RX_TIMEOUT_ERROR:
+            Host_HandleRxEvent();
             break;
 
         default:

@@ -36,7 +36,6 @@ const char *shapeStrings[2] = {
 
 void AssignmentChoose(void) {
   OLED_Clear();
-  Bluetooth_SendString("Please choose assignment\r\n", 50);
   // ----- 第一阶段：选择任务 -----
   while (DL_GPIO_readPins(Assignment_ButtonRight_PORT,
                           Assignment_ButtonRight_PIN)) {
@@ -581,8 +580,8 @@ void assignment6(void) {
   Right_Control(1, 550);
 }
 void assignment7(void) {
-  Left_Control(1, 550);
-  Right_Control(1, 550);
+  Left_Control(1, 0);
+  Right_Control(1, 0);
 }
 
 // 如果一直没有任务就空转
