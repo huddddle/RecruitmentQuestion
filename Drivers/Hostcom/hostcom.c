@@ -112,18 +112,26 @@ bool Host_Receive_Process(void)
 /* ====================================================================
  * UART 中断服务函数
  * ==================================================================== */
+volatile bool gHostFrameReady = false;
 void UART_0_INST_IRQHandler(void)
 {
     switch (DL_UART_Main_getPendingInterrupt(UART_0_INST)) {
-        case DL_UART_MAIN_IIDX_EOT_DONE:       /* 发送彻底结束 */
+        case DL_UART_MAIN_IIDX_EOT_DONE:
             gCheckUART = true;
             break;
-        case DL_UART_MAIN_IIDX_DMA_DONE_TX:    /* TX DMA 搬运完毕 */
+
+        case DL_UART_MAIN_IIDX_DMA_DONE_TX:
             gDMADone_TX = true;
             break;
-        case DL_UART_MAIN_IIDX_DMA_DONE_RX:    /* RX DMA 收齐了指定数量的数据 */
+
+        case DL_UART_MAIN_IIDX_DMA_DONE_RX:
             gDMADone_RX = true;
+
+            if (Host_Receive_Process()) {
+                gHostFrameReady = true;
+            }
             break;
+
         default:
             break;
     }
