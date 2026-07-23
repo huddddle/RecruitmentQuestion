@@ -18,6 +18,20 @@ static int Delta_PWM_R = 0;
 Loc_PID DistPID_L = {3.0, 0.0, 0.2, 0, 0, 0};
 Loc_PID DistPID_R = {3.0, 0.0, 0.2, 0, 0, 0};
 
+// 纯航向控制 PID：Kp、Ki、Kd、误差状态、积分限幅、修正限幅、速度限幅。
+// 参数集中在结构体中，方便实车调试时直接修改，不使用宏定义。
+Yaw_PID TargetDirectionYawPID = {
+    5.0f,     // Kp
+    0.0f,     // Ki
+    0.0f,     // Kd
+    0.0f,     // Error
+    0.0f,     // Last_Error
+    0.0f,     // Integral
+    3000.0f,  // Integral_Limit
+    240,      // Correction_Limit
+    250       // Speed_Limit
+};
+
 // 初始化定时器
 void Speed_Init(void)
 {
@@ -82,6 +96,13 @@ static float NormalizeYawError(float error)
 }
 
 static int LimitInt(int value, int minValue, int maxValue)
+{
+    if (value > maxValue) return maxValue;
+    if (value < minValue) return minValue;
+    return value;
+}
+
+static float LimitFloat(float value, float minValue, float maxValue)
 {
     if (value > maxValue) return maxValue;
     if (value < minValue) return minValue;
@@ -186,6 +207,77 @@ int DistanceControlWithYaw(int target_distance, int dir, float target_yaw, int b
     SpeedControl(target_speed_L, target_speed_R, dir);
 
     return 0;
+}
+
+/******************************************************************
+ * 函 数 名 称：TargettedDirectionWithYaw
+ * 函 数 说 明：仅使用陀螺仪航向角控制小车沿目标方向持续行驶
+ * 函 数 形 参：dir          行驶方向，1 为前进，0 为后退
+ *              target_yaw   目标航向角，范围建议为 -180° 到 180°
+ *              basic_speed  左右轮的基础 PWM
+ * 函 数 返 回：无；该函数不会根据距离自动停止，需要由上层状态机控制
+ * 备       注：不读取编码器，不使用速度环和距离环，直接输出左右轮 PWM
+ ******************************************************************/
+void TargettedDirectionWithYaw(int dir, float target_yaw, int basic_speed)
+{
+    static float last_target_yaw = 0.0f;
+    static int last_dir = -1;
+    static bool yaw_control_initialized = false;
+
+    // dir 只允许为 0 或 1，防止错误方向参数传入电机控制函数。
+    dir = LimitInt(dir, 0, 1);
+    basic_speed = LimitInt(basic_speed, 0, TargetDirectionYawPID.Speed_Limit);
+
+    // 当前航向相对目标航向的偏差，并处理 ±180° 处的角度跳变。
+    TargetDirectionYawPID.Error = NormalizeYawError(wit_data.yaw - target_yaw);
+
+    // 首次运行或目标方向发生变化时，令微分项从 0 开始，避免输出突变。
+    if (!yaw_control_initialized ||
+        target_yaw != last_target_yaw ||
+        dir != last_dir) {
+        TargetDirectionYawPID.Last_Error = TargetDirectionYawPID.Error;
+        TargetDirectionYawPID.Integral = 0.0f;
+        yaw_control_initialized = true;
+    }
+
+    float yaw_error = NormalizeYawError(TargetDirectionYawPID.Error -
+                                        TargetDirectionYawPID.Last_Error);
+
+    // 积分项进行限幅，防止长时间存在航向偏差时发生积分饱和。
+    TargetDirectionYawPID.Integral += TargetDirectionYawPID.Error;
+    TargetDirectionYawPID.Integral =
+        LimitFloat(TargetDirectionYawPID.Integral,
+                   -TargetDirectionYawPID.Integral_Limit,
+                   TargetDirectionYawPID.Integral_Limit);
+
+    TargetDirectionYawPID.Last_Error = TargetDirectionYawPID.Error;
+    last_target_yaw = target_yaw;
+    last_dir = dir;
+
+    // 航向 PID 修正：输出作为左右轮 PWM 的差值。
+    int yaw_correction =
+        (int)(TargetDirectionYawPID.Kp * TargetDirectionYawPID.Error +
+              TargetDirectionYawPID.Ki * TargetDirectionYawPID.Integral +
+              TargetDirectionYawPID.Kd * yaw_error);
+    yaw_correction = LimitInt(yaw_correction,
+                              -TargetDirectionYawPID.Correction_Limit,
+                              TargetDirectionYawPID.Correction_Limit);
+
+    // 后退时车辆转向响应与前进相反，因此航向修正方向也要取反。
+    if (dir == 0) {
+        yaw_correction = -yaw_correction;
+    }
+
+    int target_pwm_L = basic_speed + yaw_correction;
+    int target_pwm_R = basic_speed - yaw_correction;
+
+    // 防止修正量使 PWM 为负数或超过当前控制接口的安全上限。
+    target_pwm_L = LimitInt(target_pwm_L, 0, TargetDirectionYawPID.Speed_Limit);
+    target_pwm_R = LimitInt(target_pwm_R, 0, TargetDirectionYawPID.Speed_Limit);
+
+    // 直接控制电机，不调用依赖编码器反馈的 SpeedControl()。
+    Left_Control((uint8_t)dir, target_pwm_L);
+    Right_Control((uint8_t)dir, target_pwm_R);
 }
 
 int DistanceControl(int target_distance, int dir)

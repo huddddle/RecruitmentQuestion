@@ -61,7 +61,7 @@
 #define DRIVE_BOARD_DEMO_SPEED_STEP   (5)
 #define DRIVE_BOARD_DEMO_STEP_TIME_MS (200U)
 
-//  ryx test
+//  ryx test7 7u
 uint8_t oled_buffer[64];
 volatile uint8_t gEchoData = 0;
 void (*assignment_function[8])(void) = {assignment0, assignment1, assignment2,
@@ -92,7 +92,7 @@ int main(void)
 
   AssignmentChoose();
 
-  OLED_ShowString(0, 0, (uint8_t *)"Rx:", 8);
+  OLED_ShowString(0, 0, (uint8_t *)"Yaw:", 8);
   OLED_ShowString(0, 2, (uint8_t *)"Stage:", 8);
   OLED_ShowString(0, 4, (uint8_t *)"AssiFlag:", 8);
   OLED_ShowString(0, 6, (uint8_t *)"SenNumber:", 8);
@@ -101,69 +101,70 @@ int main(void)
 
 
 
-#if DRIVE_BOARD_DEMO_ENABLE
-  /* DriveBoard_Init() 已根据 drive_board.c 顶部配置完成模式和 PID 设置。
-   * 如某一路编码器方向相反，再单独启用；不要默认全部取反。
-   */
-  // (void)DriveBoard_SetEncoderPolarity(1U, true);
-  // (void)DriveBoard_ClearEncoders();
+// #if DRIVE_BOARD_DEMO_ENABLE
+//   /* DriveBoard_Init() 已根据 drive_board.c 顶部配置完成模式和 PID 设置。
+//    * 如某一路编码器方向相反，再单独启用；不要默认全部取反。
+//    */
+//   // (void)DriveBoard_SetEncoderPolarity(1U, true);
+//   // (void)DriveBoard_ClearEncoders();
 
-  driveBoardNextUpdateMs = (uint32_t)tick_ms;
-#endif
+//   driveBoardNextUpdateMs = (uint32_t)tick_ms;
+// #endif
 
   while (1)
   {
-    /* 必须高频调用：只做状态检查，不等待、不阻塞。 */
-    DriveBoard_Process();
+//     /* 必须高频调用：只做状态检查，不等待、不阻塞。 */
+//     DriveBoard_Process();
 
-    /* 收到驱动板主动上报的有效 0x03 帧时，复制四路累计编码器值。 */
-    if (DriveBoard_GetEncoderCounts(driveBoardEncoderCounts)) {
-      /* driveBoardEncoderCounts[0..3] 可在此处参与里程/速度计算。 */
-    }
+//     /* 收到驱动板主动上报的有效 0x03 帧时，复制四路累计编码器值。 */
+//     if (DriveBoard_GetEncoderCounts(driveBoardEncoderCounts)) {
+//       /* driveBoardEncoderCounts[0..3] 可在此处参与里程/速度计算。 */
+//     }
 
-#if DRIVE_BOARD_DEMO_ENABLE
-    /* ================= 四电机先加速、后减速循环示例 ================= */
-    if ((int32_t)((uint32_t)tick_ms - driveBoardNextUpdateMs) >= 0) {
-      int16_t command = (int16_t)-driveBoardSpeed;
-      (void)DriveBoard_SetSpeeds(command, command, command, command);
-      driveBoardNextUpdateMs =
-          (uint32_t)tick_ms + DRIVE_BOARD_DEMO_STEP_TIME_MS;
+// #if DRIVE_BOARD_DEMO_ENABLE
+//     /* ================= 四电机先加速、后减速循环示例 ================= */
+//     if ((int32_t)((uint32_t)tick_ms - driveBoardNextUpdateMs) >= 0) {
+//       int16_t command = (int16_t)-driveBoardSpeed;
+//       (void)DriveBoard_SetSpeeds(command, command, command, command);
+//       driveBoardNextUpdateMs =
+//           (uint32_t)tick_ms + DRIVE_BOARD_DEMO_STEP_TIME_MS;
 
-      if (driveBoardAccelerating) {
-        if (driveBoardSpeed >= DRIVE_BOARD_DEMO_MAX_SPEED) {
-          driveBoardAccelerating = false;
-          driveBoardSpeed -= DRIVE_BOARD_DEMO_SPEED_STEP;
-        } else {
-          driveBoardSpeed += DRIVE_BOARD_DEMO_SPEED_STEP;
-        }
-      } else {
-        if (driveBoardSpeed <= DRIVE_BOARD_DEMO_MIN_SPEED) {
-          driveBoardAccelerating = true;
-          driveBoardSpeed += DRIVE_BOARD_DEMO_SPEED_STEP;
-        } else {
-          driveBoardSpeed -= DRIVE_BOARD_DEMO_SPEED_STEP;
-        }
-      }
-    }
-#endif
+//       if (driveBoardAccelerating) {
+//         if (driveBoardSpeed >= DRIVE_BOARD_DEMO_MAX_SPEED) {
+//           driveBoardAccelerating = false;
+//           driveBoardSpeed -= DRIVE_BOARD_DEMO_SPEED_STEP;
+//         } else {
+//           driveBoardSpeed += DRIVE_BOARD_DEMO_SPEED_STEP;
+//         }
+//       } else {
+//         if (driveBoardSpeed <= DRIVE_BOARD_DEMO_MIN_SPEED) {
+//           driveBoardAccelerating = true;
+//           driveBoardSpeed += DRIVE_BOARD_DEMO_SPEED_STEP;
+//         } else {
+//           driveBoardSpeed -= DRIVE_BOARD_DEMO_SPEED_STEP;
+//         }
+//       }
+//     }
+// #endif
 
     trackSensorUpdate();
+sprintf((char *)oled_buffer, "%.4f", wit_data.yaw);
+OLED_ShowString(7 * 8, 0, oled_buffer, 16);
+sprintf((char *)oled_buffer, "%d", stageFlag);
+OLED_ShowString(7 * 8, 2, oled_buffer, 16);
+sprintf((char *)oled_buffer, "%d", assignmentFlag);
+OLED_ShowString(9 * 8, 4, oled_buffer, 16);
+sprintf((char *)oled_buffer, "%d", TrkI2C_IrSensorNumber);
+OLED_ShowString(9 * 8, 6, oled_buffer, 16);
 
-    sprintf((char *)oled_buffer, "%d", stageFlag);
-    OLED_ShowString(7 * 8, 2, oled_buffer, 16);
-    sprintf((char *)oled_buffer, "%d", assignmentFlag);
-    OLED_ShowString(9 * 8, 4, oled_buffer, 16);
-    sprintf((char *)oled_buffer, "%d", TrkI2C_IrSensorNumber);
-    OLED_ShowString(9 * 8, 6, oled_buffer, 16);
-
-    assignment_function[assignmentFlag]();
-    /* 非阻塞检查上位机数据；收到有效帧才刷新 OLED (行首 "Rx:" 之后) */
-    if (Host_Receive_Process())
-    {
-    if (g_Host_Var1 != '4') 
-    {
-      LightAndSound();
-    } 
-    }
+assignment_function[assignmentFlag]();
+/* 非阻塞检查上位机数据；收到有效帧才刷新 OLED (行首 "Rx:" 之后) */
+// if (Host_Receive_Process())
+// {
+// if (g_Host_Var1 != '4')
+// {
+//   LightAndSound();
+// }
+// }
   }
 }

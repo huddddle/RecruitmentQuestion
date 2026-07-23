@@ -458,117 +458,69 @@ void assignment4(void) {
 }
 
 void assignment5(void) {
+  // case 0 和 case 2 分别使用独立计数器，避免两个直线阶段互相影响。
+  // 计数器跨多次主循环保存；连续检测到灰线达到阈值后才允许切换状态。
+  static uint8_t case0_line_detect_count = 0U;
+  static uint8_t case2_line_detect_count = 0U;
+  static const uint8_t line_detect_confirm_count = 4U;
 
   TaskYawInitialization();
 
   switch (stageFlag) {
   case 0:
-    DistanceControlWithYaw(850, 1, Task1TargetYaw(0.0f), 100, false);
-    if (encoderFlag == 1) {
-      stageFlag = 1;
-      stop();
+    TargettedDirectionWithYaw(1,Task1TargetYaw(0.0f),500);
+
+    if (IrSensorNumber != 0U) {
+      // 本次检测到灰线，连续有效次数加一；达到上限后保持，防止溢出。
+      if (case0_line_detect_count < line_detect_confirm_count) {
+        case0_line_detect_count++;
+      }
+
+      if (case0_line_detect_count >= line_detect_confirm_count) {
+        // 连续多次检测到灰线后才确认到达，避免单次抖动造成任务误切换。
+        case0_line_detect_count = 0U;
+        stageFlag = 1;
+        stop();
+      }
+    } else {
+      // 中间任意一次未检测到灰线，都视为抖动或尚未到达，重新开始计数。
+      case0_line_detect_count = 0U;
     }
     break;
 
   case 1:
-    Right_Turn(90);
-    if (turnCompleted == 1)
-      stageFlag++;
+    Tracking();
     break;
 
   case 2:
-    DistanceControlWithYaw(140, 1, Task1TargetYaw(-90.0f), 100, false);
-    if (encoderFlag == 2) {
-      stageFlag++;
-      stop();
+    TargettedDirectionWithYaw(1,Task1TargetYaw(-180.0f),500);
+
+    if (IrSensorNumber != 0U) {
+      // 本次检测到灰线，连续有效次数加一；达到上限后保持，防止溢出。
+      if (case2_line_detect_count < line_detect_confirm_count) {
+        case2_line_detect_count++;
+      }
+
+      if (case2_line_detect_count >= line_detect_confirm_count) {
+        // 连续多次检测到灰线后才确认到达，避免单次抖动造成任务误切换。
+        case2_line_detect_count = 0U;
+        stageFlag = 3;
+        stop();
+      }
+    } else {
+      // 中间任意一次未检测到灰线，都视为抖动或尚未到达，重新开始计数。
+      case2_line_detect_count = 0U;
     }
     break;
 
   case 3:
-    Right_Turn(90);
-    if (turnCompleted == 2)
-      stageFlag++;
+    Tracking();
     break;
 
   case 4:
-    DistanceControlWithYaw(380, 1, Task1TargetYaw(-180.0f), 100, false);
-    if (encoderFlag == 3) {
-      stop();
-      LightAndSound();
-      Host_Send('0', "000000", '0'); // 到达标靶位置
-      while (!(g_Host_Var1 == '6' && Host_Receive_Process())) {
-        ;
-      }
-      stageFlag++;
-    }
-
+   stageFlag=0;
     break;
-
-  case 5:
-    DistanceControlWithYaw(570, 1, Task1TargetYaw(-180.0f), 100, false);
-    if (encoderFlag == 4) {
-      stop();
-      stageFlag++;
-    }
-    break;
-
-  case 6:
-    Right_Turn(90);
-    if (turnCompleted == 3)
-      stageFlag++;
-    break;
-
-  case 7:
-    DistanceControlWithYaw(650, 1, Task1TargetYaw(90.0f), 100, false);
-    if (encoderFlag == 5) {
-      stageFlag++;
-      stop();
-    }
-    break;
-
-  case 8:
-    Right_Turn(90);
-    if (turnCompleted == 4)
-      stageFlag++;
-    break;
-
-  case 9:
-    if (DistanceControlWithYaw(230, 0, Task1TargetYaw(-180.0f), 100, false)) {
-      stageFlag++;
-      stop();
-      LightAndSound();
-      Host_Send('1', "000000", '0');
-    }
-    break;
-
-  case 10:
-    if (Host_Receive_Process() && g_Host_Var1 == '5') {
-      stop();
-      LightAndSound();
-      mspm0_delay_ms(4000);
-    }
-    if (DistanceControlWithYaw(830, 1, Task1TargetYaw(0.0f), 100, false)) {
-      stop();
-      stageFlag++;
-    } else {
-      ;
-    }
-    break;
-
-  case 11:
-    if (Host_Receive_Process() && g_Host_Var1 == '5') {
-      stop();
-      LightAndSound();
-      mspm0_delay_ms(4000);
-    }
-
-    if (DistanceControlWithYaw(830, 0, Task1TargetYaw(-180.0f), 100, false)) {
-      stageFlag--;
-      stop();
-    } else {
-      ;
-    }
-    break;
+    return;
 
   default:
     break;
@@ -576,12 +528,11 @@ void assignment5(void) {
 }
 
 void assignment6(void) {
-  Left_Control(1, 550);
-  Right_Control(1, 550);
+Tracking();
 }
 void assignment7(void) {
-  Left_Control(1, 0);
-  Right_Control(1, 0);
+  Left_Control(1, 600);
+  Right_Control(1, 600);
 }
 
 // 如果一直没有任务就空转

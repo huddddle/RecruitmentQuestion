@@ -13,9 +13,24 @@ typedef struct {
     int Integral;
 } Loc_PID;
 
+// ====== 纯航向控制器专属的 PID 结构体 ======
+// 航向误差需要保留小数，因此误差和积分项使用 float。
+typedef struct {
+    float Kp;
+    float Ki;
+    float Kd;
+    float Error;
+    float Last_Error;
+    float Integral;
+    float Integral_Limit;
+    int Correction_Limit;
+    int Speed_Limit;
+} Yaw_PID;
+
 // 声明外部的两个位置结构体
 extern Loc_PID DistPID_L;
 extern Loc_PID DistPID_R;
+extern Yaw_PID TargetDirectionYawPID;
 
 // 初始化声明
 void Speed_Init(void);
@@ -29,5 +44,9 @@ void SpeedControl(int target_speed_L, int target_speed_R,int dir);
 extern volatile int32_t AbsoluateEncoder; 
 int DistanceControl(int target_distance,int dir);
 int DistanceControlWithYaw(int target_distance, int dir, float target_yaw, int basic_speed, bool Distance_pid);
+
+// 仅使用陀螺仪保持目标航向，不使用编码器、速度环或距离环。
+// 函数会持续控制小车行驶，停止和任务切换由上层状态机负责。
+void TargettedDirectionWithYaw(int dir, float target_yaw, int basic_speed);
 
 #endif

@@ -14,7 +14,7 @@
 #define turn_threshold 2
 #define max_correction 90
 #define Middle 215.99
-int irSpeed=300; // 巡线速度
+int irSpeed=250; // 巡线速度
 
 // 
 int32_t pid_output_IRR = 0;
@@ -166,49 +166,98 @@ static int crossing_turn_dir = 0;   // 1: 左转, 2: 右转
 
 
 static SoftTimer_t Trackingtimer = {0, false};    // 前进计时器
+
+// 灰度传感器必须连续这么多次未检测到灰线，才确认循迹结束。
+// 如果实车仍容易误触发，可以适当增大该值；如果切换明显过慢，可以适当减小。
+#define TRACKING_LOST_CONFIRM_COUNT 3
+
 void Tracking(void) {
+  // 跨多次函数调用保存连续丢线次数；只要重新检测到灰线就会清零。
+  static uint8_t lost_line_count = 0U;
+  static float last_tracking_error = 0.0f;
+  static float filtered_error_change = 0.0f;
+  static bool tracking_pd_initialized = false;
+
   // static int8_t LeftturningPoint=0;//循迹转向防抖
   // static int8_t RightturningPoint=0;//循迹转向防抖
 
   // 转弯识别
   trackSensorUpdate();
-    
-  // if (TrkI2C_IrSensorNumber==0) 
-  // {
-  //     mspm0_delay_ms(100);
-  //     trackSensorUpdate();
-  //     if (TrkI2C_IrSensorNumber==0) //如果没有路了，说明到地方了
-  //     {
-  //       assignmentFlag=0;
-  //       Left_Control(1, 0); 
-  //       Right_Control(1, 0);
-  //       return;
-  //     }
-  // } 
 
+  if (TrkI2C_IrSensorNumber == 0U) {
+    // 本次未检测到灰线，只记录一次，不立即切换任务。
+    if (lost_line_count < TRACKING_LOST_CONFIRM_COUNT) {
+      lost_line_count++;
+    }
+
+    if (lost_line_count >= TRACKING_LOST_CONFIRM_COUNT) {
+      // 连续多次检测为 0，确认灰线确实消失，再停止并切换状态。
+      lost_line_count = 0U;
+      last_tracking_error = 0.0f;
+      filtered_error_change = 0.0f;
+      tracking_pd_initialized = false;
+      stop();
+      stageFlag++;
+      return;
+    }
+  } else {
+    // 中间任意一次重新检测到灰线，都说明不是连续丢线，重新开始计数。
+    lost_line_count = 0U;
+  }
 
   int Tracking_Sum = 0;
-  // 3. 正常循迹偏差计算
-  if(TrkI2C_IrSensorNumber > 0 && TrkI2C_IrSensorNumber <4) {
-    if(TrkI2C_x[1]) Tracking_Sum += 80;
-    if(TrkI2C_x[2]) Tracking_Sum += 40;
-    if(TrkI2C_x[3]) Tracking_Sum += 30;
-    if(TrkI2C_x[4]) Tracking_Sum += 10;
-    if(TrkI2C_x[5]) Tracking_Sum += 5;
-    if(TrkI2C_x[6]) Tracking_Sum -= 5;
-    if(TrkI2C_x[7]) Tracking_Sum -= 10;
-    if(TrkI2C_x[8]) Tracking_Sum -= 30;
-    if(TrkI2C_x[9]) Tracking_Sum -= 40;
-    if(TrkI2C_x[10]) Tracking_Sum -= 80;
-  }
-  float Kp = 1.0f; // 循迹比例
-  float Kd = 0.3f; // 循迹微分（抑制震荡）
-  // 3. PD 控制器计算
-  static int last_tracking_error = 0;
-  int error_change = Tracking_Sum - last_tracking_error;
+  float tracking_error = last_tracking_error;
 
-  int adjustpwm = (int)(Kp * Tracking_Sum + Kd * error_change);
-  last_tracking_error = Tracking_Sum;
+  // 使用更加平滑的对称权重，减小灰线经过中心两路时的误差突变。
+  if (TrkI2C_IrSensorNumber > 0U) {
+    if (TrkI2C_x[0])
+      Tracking_Sum += 110;
+    if (TrkI2C_x[1])
+      Tracking_Sum += 80;
+    if (TrkI2C_x[2])
+      Tracking_Sum += 55;
+    if (TrkI2C_x[3])
+      Tracking_Sum += 35;
+    if (TrkI2C_x[4])
+      Tracking_Sum += 20;
+    if (TrkI2C_x[5])
+      Tracking_Sum += 5;
+    if (TrkI2C_x[6])
+      Tracking_Sum -= 5;
+    if (TrkI2C_x[7])
+      Tracking_Sum -= 20;
+    if (TrkI2C_x[8])
+      Tracking_Sum -= 35;
+    if (TrkI2C_x[9])
+      Tracking_Sum -= 55;
+    if (TrkI2C_x[10])
+      Tracking_Sum -= 80;
+    if (TrkI2C_x[11])
+      Tracking_Sum -= 110;
+
+    // 多路探头同时压线时取加权平均，避免误差随触发数量成倍增大。
+    tracking_error = (float)Tracking_Sum /
+                     (float)TrkI2C_IrSensorNumber;
+  }
+
+  const float Kp = 1.2f; // 循迹比例：先降低转向修正强度
+  const float Kd = 0.15f; // 循迹微分：避免过度放大灰度传感器跳变
+
+  // 第一次取得有效误差时不计算微分，防止刚进入循迹状态时输出突变。
+  if (!tracking_pd_initialized && TrkI2C_IrSensorNumber > 0U) {
+    last_tracking_error = tracking_error;
+    filtered_error_change = 0.0f;
+    tracking_pd_initialized = true;
+  }
+
+  // 对误差变化量进行低通滤波，削弱二值灰度信号跳变造成的微分冲击。
+  float raw_error_change = tracking_error - last_tracking_error;
+  filtered_error_change = 0.7f * filtered_error_change +
+                          0.3f * raw_error_change;
+
+  int adjustpwm = (int)(Kp * tracking_error +
+                        Kd * filtered_error_change);
+  last_tracking_error = tracking_error;
 
   Left_Control(1, irSpeed - adjustpwm); 
   Right_Control(1, irSpeed + adjustpwm);
@@ -260,7 +309,7 @@ int Straight(float base_speed)
 
   // 执行电机控制：方向 1=前进，速度为计算后的值
   Left_Control(1, left_speed);
-  Right_Control(1, right_speed);
+  Right_Control(1, right_speed+60);
 
 
   return 5;  // 持续返回5表示直线行走进行中
